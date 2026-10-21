@@ -1,0 +1,41 @@
+{
+  "name": "@floor/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "db:generate": "node scripts/prisma-generate.mjs",
+    "db:push": "tsx scripts/db.ts push",
+    "db:setup": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && tsx scripts/db.ts push && tsx src/seed.ts",
+    "db:reset": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && tsx scripts/db.ts reset && tsx src/seed.ts",
+    "postinstall": "node scripts/prisma-generate.mjs"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.1",
+    "@floor/core": "workspace:*",
+    "@prisma/adapter-better-sqlite3": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@prisma/driver-adapter-utils": "7.10.1",
+    "@prisma/schema-engine-wasm": "8.1.0-1.d1b3f377ca835d73fd50954a5e22128b9ebdd6b8",
+    "better-sqlite3": "12.11.1",
+    "fastify": "5.12.7",
+    "fastify-plugin": "5.1.0",
+    "nanoid": "5.1.16",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "22.20.5",
+    "pino-pretty": "13.2.0",
+    "prisma": "7.10.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}
