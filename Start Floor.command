@@ -2,6 +2,7 @@
 # Floor — one-click local start (mock mode, no credentials, nothing paid).
 cd "$(dirname "$0")" || exit 1
 export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export PATH="$HOME/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 if ! command -v node >/dev/null; then echo "Node.js not found. Install it from https://nodejs.org (LTS) and run this again."; read -r -p "Press Enter to close"; exit 1; fi
 if ! command -v pnpm >/dev/null; then echo "Installing pnpm..."; corepack enable 2>/dev/null && corepack prepare pnpm@10.28.0 --activate 2>/dev/null || npm install -g pnpm@10; fi
