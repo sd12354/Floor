@@ -17,7 +17,7 @@ need_node || pause "Node $(node -v) is too old; Floor needs Node 20.19+ (22 reco
 echo "Using Node $(node -v)"
 if ! command -v pnpm >/dev/null; then echo "Installing pnpm..."; corepack enable 2>/dev/null && corepack prepare pnpm@10.28.0 --activate 2>/dev/null || npm install -g pnpm@10 || pause "Could not install pnpm."; fi
 echo "Checking dependencies..."; pnpm install || pause "Install failed."
-pnpm --filter @floor/api run doctor || { echo "Rebuilding native SQLite driver..."; pnpm rebuild better-sqlite3 && pnpm --filter @floor/api run doctor; } || pause "The SQLite driver (better-sqlite3) cannot run on this machine. See floor-start.log."
+pnpm --filter @floor/api check-env || { echo "Rebuilding native SQLite driver..."; pnpm rebuild better-sqlite3 && pnpm --filter @floor/api check-env; } || pause "The SQLite driver (better-sqlite3) cannot run on this machine. See floor-start.log."
 if [ ! -f apps/api/dev.db ]; then echo "Creating local database..."; pnpm --filter @floor/api db:setup || pause "DB setup failed."; fi
 echo; echo "Starting Floor — API on http://localhost:4000, app on http://localhost:5173"; echo "Keep this window open. Close it (or Ctrl+C) to stop."; echo
 (sleep 6; open "http://localhost:5173") &
