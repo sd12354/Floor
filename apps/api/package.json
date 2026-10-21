@@ -7,13 +7,13 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
-    "test": "vitest run",
+    "test": "NODE_OPTIONS=--experimental-wasm-modules vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "db:generate": "node scripts/prisma-generate.mjs",
-    "db:push": "tsx scripts/db.ts push",
-    "db:setup": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && tsx scripts/db.ts push && tsx src/seed.ts",
-    "db:reset": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && tsx scripts/db.ts reset && tsx src/seed.ts",
+    "db:push": "node --experimental-wasm-modules --import tsx scripts/db.ts push",
+    "db:setup": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && node --experimental-wasm-modules --import tsx scripts/db.ts push && node --experimental-wasm-modules --import tsx src/seed.ts",
+    "db:reset": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && node --experimental-wasm-modules --import tsx scripts/db.ts reset && node --experimental-wasm-modules --import tsx src/seed.ts",
     "postinstall": "node scripts/prisma-generate.mjs"
   },
   "dependencies": {
