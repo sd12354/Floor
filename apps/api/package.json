@@ -14,7 +14,8 @@
     "db:push": "node --experimental-wasm-modules --import tsx scripts/db.ts push",
     "db:setup": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && node --experimental-wasm-modules --import tsx scripts/db.ts push && node --experimental-wasm-modules --import tsx src/seed.ts",
     "db:reset": "pnpm --filter @floor/core build && node scripts/prisma-generate.mjs && node --experimental-wasm-modules --import tsx scripts/db.ts reset && node --experimental-wasm-modules --import tsx src/seed.ts",
-    "postinstall": "node scripts/prisma-generate.mjs"
+    "postinstall": "node scripts/prisma-generate.mjs",
+    "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
     "@fastify/cors": "11.3.1",

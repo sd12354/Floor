@@ -1,6 +1,8 @@
 #!/bin/bash
 # Floor — one-click local start (mock mode, no credentials, nothing paid).
 cd "$(dirname "$0")" || exit 1
+exec > >(tee -a "floor-start.log") 2>&1
+echo "=== Floor start $(date) ==="
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export PATH="$HOME/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null
@@ -15,6 +17,7 @@ need_node || pause "Node $(node -v) is too old; Floor needs Node 20.19+ (22 reco
 echo "Using Node $(node -v)"
 if ! command -v pnpm >/dev/null; then echo "Installing pnpm..."; corepack enable 2>/dev/null && corepack prepare pnpm@10.28.0 --activate 2>/dev/null || npm install -g pnpm@10 || pause "Could not install pnpm."; fi
 echo "Checking dependencies..."; pnpm install || pause "Install failed."
+pnpm --filter @floor/api doctor || { echo "Rebuilding native SQLite driver..."; pnpm rebuild better-sqlite3 && pnpm --filter @floor/api doctor; } || pause "The SQLite driver (better-sqlite3) cannot run on this machine. See floor-start.log."
 if [ ! -f apps/api/dev.db ]; then echo "Creating local database..."; pnpm --filter @floor/api db:setup || pause "DB setup failed."; fi
 echo; echo "Starting Floor — API on http://localhost:4000, app on http://localhost:5173"; echo "Keep this window open. Close it (or Ctrl+C) to stop."; echo
 (sleep 6; open "http://localhost:5173") &

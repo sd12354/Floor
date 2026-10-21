@@ -11,3 +11,4 @@ apps/api/prisma/*.db
 apps/api/src/generated/
 apps/api/*.db
 apps/api/prisma/*.db-*
+floor-start.log
