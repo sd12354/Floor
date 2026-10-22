@@ -1,8 +1,10 @@
-import type { Cents, LadderDecision, MarginResult } from './types.js';
+import { meetsFloor } from './margin.js';
+import type { LadderDecision, MarginResult, Pct } from './types.js';
 
 export interface LadderInput {
   margin: MarginResult;
-  smallLossToleranceCents: Cents;
+  /** The seller's margin floor as a decimal (0.1 = 10%). Orders below it are held, never auto-fulfilled. */
+  floorPct: Pct;
   stock: number;
   /** Current time (ISO string or Date). Used to decide whether a hold has already expired. */
   now: Date | string;
@@ -30,17 +32,16 @@ export function holdDeadline(orderCreatedAt: Date | string, handlingTimeDays: nu
  * Post-sale ladder, evaluated once the supplier price/stock has been re-fetched:
  *
  *   stock 0                                   -> cancel (out_of_stock)
- *   netMarginPct >= 0                         -> fulfil (within_tolerance)
- *   netProfitCents >= -smallLossTolerance     -> fulfil (small_loss)
+ *   netMarginPct >= floorPct                  -> fulfil (within_tolerance)
  *   deadline already passed                   -> cancel (no_decision)
  *   otherwise                                 -> hold (below_floor) until deadline
+ *
+ * Floor never fulfils on its own below the seller's margin floor, not even at a small profit.
+ * The 'small_loss' reason is no longer produced; it stays in the type so old orders still render.
  */
 export function decide(input: LadderInput): LadderDecision {
   if (input.stock <= 0) return { action: 'cancel', reason: 'out_of_stock' };
-  if (input.margin.netMarginPct >= 0) return { action: 'fulfil', reason: 'within_tolerance' };
-  if (input.margin.netProfitCents >= -Math.abs(input.smallLossToleranceCents)) {
-    return { action: 'fulfil', reason: 'small_loss' };
-  }
+  if (meetsFloor(input.margin, input.floorPct)) return { action: 'fulfil', reason: 'within_tolerance' };
   const deadline = holdDeadline(input.orderCreatedAt, input.handlingTimeDays);
   if (toDate(input.now).getTime() >= deadline.getTime()) {
     return { action: 'cancel', reason: 'no_decision' };

@@ -6,6 +6,7 @@ interface OrderShape {
   status: string;
   ebayOrderId: string;
   supplierOrderId?: string;
+  salePriceCents?: number;
   supplierCostCents?: number;
   supplierShippingCents?: number;
   ebayFeesCents?: number;
@@ -31,7 +32,7 @@ let baseCost: number;
 
 beforeAll(async () => {
   t = await createTestApp({ trackingDelayMs: 1000 });
-  // A pricier product (~$34 cost) so a 60% supplier drift clearly exceeds the $5 small-loss tolerance.
+  // A pricier product (~$34 cost) so a 60% supplier drift clearly drops the order below the margin floor.
   const l = await publishOne(t, 'garden bed');
   listingId = l.id;
   sku = l.product.supplierSku;
@@ -108,15 +109,18 @@ describe('order pipeline', () => {
     expect(detail.body.events.at(-1)?.type).toBe('order.cancelled');
   });
 
-  it('small loss within tolerance is fulfilled as small_loss', async () => {
+  it('a profitable order below the margin floor is held, never auto-fulfilled', async () => {
     resetCost();
-    // Find a drift that lands between 0 margin and -$5: bump cost by the current net profit + $2.
+    // Drift the cost so net profit lands at about +3% of the sale price: above zero, below the 10% floor.
     const probe = await t.api<OrderShape>('POST', '/orders/simulate', { listingId });
     const profit = probe.body.netProfitCents ?? 0;
-    const driftPct = ((profit + 200) / baseCost) * 100;
+    const sale = probe.body.salePriceCents ?? 0;
+    const driftPct = ((profit - Math.round(sale * 0.03)) / baseCost) * 100;
     const res = await t.api<OrderShape>('POST', '/orders/simulate', { listingId, priceDriftPct: driftPct });
-    expect(res.body.status).toBe('ordered');
-    expect(res.body.ladderDecision).toEqual({ action: 'fulfil', reason: 'small_loss' });
+    expect(res.body.netProfitCents).toBeGreaterThan(0);
+    expect(res.body.status).toBe('held');
+    expect(res.body.ladderDecision).toMatchObject({ action: 'hold', reason: 'below_floor' });
+    expect(res.body.supplierOrderId).toBeUndefined();
   });
 
   it('out of stock -> cancelled (out_of_stock)', async () => {

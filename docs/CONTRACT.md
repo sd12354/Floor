@@ -101,7 +101,7 @@ interface ComplianceResult { ok: true } | { ok: false; code: 'SUPPLIER_NOT_ALLOW
 
 1. `paid` → `checking`: re-fetch supplier price/stock; compute margin with account fees.
 2. Compliance gate re-run (supplier still allowed, listing not blocked).
-3. Ladder: `netMarginPct >= 0` → fulfil (`within_tolerance`); `netProfitCents >= -smallLossToleranceCents` → fulfil (`small_loss`); else `held` with `holdDeadline = createdAt + handlingTimeDays*24h - 12h`. A scheduler cancels held orders past deadline (`no_decision`). Stock 0 with no backup → `cancelled` (`out_of_stock`).
+3. Ladder: `netMarginPct >= pricingRule.floorPct` → fulfil (`within_tolerance`); anything below the floor, including a small profit or break-even, → `held`. There is no small-loss exception: `small_loss` is no longer produced (kept in the type for old orders) and `smallLossToleranceCents` is deprecated and ignored. Held with `holdDeadline = createdAt + handlingTimeDays*24h - 12h`. A scheduler cancels held orders past deadline (`no_decision`). Stock 0 with no backup → `cancelled` (`out_of_stock`).
 4. Daily spend cap: if today's supplier spend + this cost > cap → `queued`; a scheduler drains the queue after midnight or when cap is raised.
 5. `ordered`: supplier `placeOrder` called exactly once; store `supplierOrderId`, actual cost; ledger entries written; outbound `order_confirmed` message.
 6. `shipped`: tracking from supplier → eBay `createShippingFulfillment` (mock: no-op) → `shipped` message.

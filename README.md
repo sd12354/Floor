@@ -12,7 +12,7 @@ pnpm --filter @floor/api db:setup   # creates SQLite dev DB and seeds the demo a
 pnpm dev                            # API on :4000, web on :5173
 ```
 
-Open http://localhost:5173. Connect the (mock) eBay account and mock supplier, approve a few products from Discovery, publish, then use **Simulate sale** on a listing to watch an order run through the pipeline: margin re-check → supplier order → tracking → payout. Add a supplier price drift of 60% to the simulation to see the post-sale ladder hold the order for your decision.
+Open http://localhost:5173. Connect the (mock) eBay account and mock supplier, approve a few products from Discovery, publish, then use **Simulate sale** on a listing to watch an order run through the pipeline: margin re-check → supplier order → tracking → payout. Add a supplier price drift (try 60%) to the simulation: if the order's margin falls below your floor, Floor holds it for your decision instead of fulfilling. Floor never fulfils below your margin floor on its own; you can still approve a held order by hand.
 
 Notes for restricted networks: `prisma generate` is run through `apps/api/scripts/prisma-generate.mjs`, which points
 `PRISMA_SCHEMA_ENGINE_BINARY` at a local no-op so nothing is downloaded from binaries.prisma.sh; schema push uses the

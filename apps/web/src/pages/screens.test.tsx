@@ -74,7 +74,7 @@ describe('Orders', () => {
 });
 
 describe('Simulate sale', () => {
-  it('sends priceDriftPct as a percentage: +20% on a $18.99 listing is still a fulfil, +100% is a hold', async () => {
+  it('sends priceDriftPct as a percentage: +5% on a $18.99 listing still clears the floor, +100% is a hold', async () => {
     const user = userEvent.setup();
     resetState();
     renderApp('/listings?status=active');
@@ -84,8 +84,8 @@ describe('Simulate sale', () => {
     const slider = within(dialog).getByLabelText(/Supplier price drift/);
     // jsdom range inputs: set the value and fire change so React sees +60.
     const { fireEvent } = await import('@testing-library/react');
-    fireEvent.change(slider, { target: { value: '20' } });
-    // A fraction bug (0.2 read as 20%... or 20 read as 2000%) would flip this preview.
+    fireEvent.change(slider, { target: { value: '5' } });
+    // A fraction bug (0.05 read as 5%... or 5 read as 500%) would flip this preview.
     expect(within(dialog).getByText(/Floor will order from the supplier immediately/)).toBeInTheDocument();
     fireEvent.change(slider, { target: { value: '100' } });
     expect(within(dialog).getByText(/Floor will hold the order/)).toBeInTheDocument();

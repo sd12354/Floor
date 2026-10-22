@@ -35,7 +35,7 @@ export function OrderDetailPage() {
     });
 
   const listingTitle = o.listing?.title;
-  const ctx = { floorPct: formatPct(account?.pricingRule.floorPct ?? 0.1, 0), tolerance: formatCents(account?.smallLossToleranceCents ?? 500) };
+  const ctx = { floorPct: formatPct(account?.pricingRule.floorPct ?? 0.1, 0) };
 
   return (
     <>

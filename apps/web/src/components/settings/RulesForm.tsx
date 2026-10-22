@@ -29,7 +29,6 @@ export function RulesForm({ draft, onChange, compact }: Props) {
         </SelectField>
         <TextField label="Handling time (days)" type="number" inputMode="numeric" min={1} max={30} value={draft.handlingTimeDays} onChange={(e) => set('handlingTimeDays', Math.max(1, parseInt(e.target.value || '1', 10)))} hint="What eBay promises buyers. Held orders are cancelled 12h before this runs out." />
         <MoneyField label="Daily supplier spend cap" valueCents={draft.dailySpendCapCents} onChangeCents={(c) => set('dailySpendCapCents', c)} hint="Orders beyond this queue until midnight. Caps the float you can build in one day." />
-        <MoneyField label="Small-loss tolerance" valueCents={draft.smallLossToleranceCents} onChangeCents={(c) => set('smallLossToleranceCents', c)} hint="Fulfil anyway if the loss is at most this, to protect your seller rating." />
       </div>
 
       <PriceExample fees={draft.fees} rule={draft.pricingRule} />

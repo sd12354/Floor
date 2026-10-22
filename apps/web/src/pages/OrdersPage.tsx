@@ -78,7 +78,7 @@ export function OrdersPage() {
         {error ? <ErrorState message={errorMessage(error)} onRetry={() => refetch()} /> : isPending ? <TableSkeleton rows={6} cols={6} /> : data.items.length === 0 ? (
           <EmptyState
             title={tab === 'held' ? 'No orders are held' : tab === 'all' ? 'No orders yet' : `No ${tab} orders`}
-            description={tab === 'held' ? 'Floor holds an order only when the supplier price jumps past your loss tolerance.' : tab === 'all' ? 'When a buyer pays on eBay the order appears here. In mock mode, use Simulate sale on an active listing.' : undefined}
+            description={tab === 'held' ? 'Floor holds an order when the supplier price rises enough to push its margin below your floor.' : tab === 'all' ? 'When a buyer pays on eBay the order appears here. In mock mode, use Simulate sale on an active listing.' : undefined}
             action={tab === 'all' ? <Link to="/listings?status=active" className="inline-flex items-center h-9 px-3.5 rounded bg-accent text-accent-ink text-[14px] font-medium">Go to listings</Link> : undefined}
           />
         ) : (

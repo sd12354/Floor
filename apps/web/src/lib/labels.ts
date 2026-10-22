@@ -64,15 +64,15 @@ export const messageKindLabel: Record<MessageKind, string> = {
 };
 
 /** Plain-words explanation of a ladder decision for the order detail page. */
-export function explainLadder(d: LadderDecision | undefined, ctx: { floorPct: string; tolerance: string }): string {
+export function explainLadder(d: LadderDecision | undefined, ctx: { floorPct: string }): string {
   if (!d) return 'The margin check has not run yet.';
   switch (d.action) {
     case 'fulfil':
       return d.reason === 'within_tolerance'
-        ? 'The supplier price at the moment of sale still left a positive margin, so Floor ordered from the supplier right away.'
-        : `The supplier price had risen enough to make this order a small loss, but the loss was within your tolerance of ${ctx.tolerance}. Floor fulfilled it to protect your seller rating.`;
+        ? `The supplier price at the moment of sale still cleared your ${ctx.floorPct} margin floor, so Floor ordered from the supplier right away.`
+        : 'This order was fulfilled as a small loss under an earlier rule that no longer applies. Floor now holds anything below your margin floor.';
     case 'hold':
-      return `The supplier price rose so far that fulfilling would lose more than ${ctx.tolerance}, well below your ${ctx.floorPct} floor. Floor held the order for you to decide before the handling deadline.`;
+      return `The supplier price rose far enough that this order fell below your ${ctx.floorPct} margin floor. Floor held it for you to decide before the handling deadline.`;
     case 'cancel':
       return d.reason === 'out_of_stock'
         ? 'The supplier had no stock and no backup was available, so Floor cancelled the order before any money changed hands.'

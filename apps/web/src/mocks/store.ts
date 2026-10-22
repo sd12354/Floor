@@ -188,8 +188,7 @@ export function simulate(body: { listingId: string; buyerName?: string; priceDri
 
   let decision: LadderDecision;
   if (p.stock === 0) decision = { action: 'cancel', reason: 'out_of_stock' };
-  else if (m.netMarginPct >= 0) decision = { action: 'fulfil', reason: 'within_tolerance' };
-  else if (m.netProfitCents >= -state.account.smallLossToleranceCents) decision = { action: 'fulfil', reason: 'small_loss' };
+  else if (m.netMarginPct >= state.account.pricingRule.floorPct) decision = { action: 'fulfil', reason: 'within_tolerance' };
   else decision = { action: 'hold', reason: 'below_floor', deadline: new Date(Date.now() + state.account.handlingTimeDays * 86400_000 - 12 * 3600_000).toISOString() };
   o.ladderDecision = decision;
 

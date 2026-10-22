@@ -25,9 +25,9 @@ export function SimulateSaleDrawer({ listing, onClose }: { listing: ListingWithP
 
   const expected = (() => {
     if (!preview || !account) return '';
-    if (preview.netMarginPct >= 0) return 'Floor will order from the supplier immediately.';
-    if (preview.netProfitCents >= -account.smallLossToleranceCents) return `A loss of ${formatCents(-preview.netProfitCents)} is inside your ${formatCents(account.smallLossToleranceCents)} tolerance, so Floor will still fulfil to protect your rating.`;
-    return `A loss of ${formatCents(-preview.netProfitCents)} is more than your tolerance. Floor will hold the order and ask you to decide.`;
+    if (preview.netMarginPct >= account.pricingRule.floorPct) return 'Margin clears your floor, so Floor will order from the supplier immediately.';
+    const outcome = preview.netProfitCents >= 0 ? `Net profit would be only ${formatCents(preview.netProfitCents)}` : `This order would lose ${formatCents(-preview.netProfitCents)}`;
+    return `${outcome}, below your margin floor. Floor will hold the order and ask you to decide.`;
   })();
 
   const run = () => {

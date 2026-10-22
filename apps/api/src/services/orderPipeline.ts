@@ -118,7 +118,7 @@ export async function processOrder(db: Db, connectors: Connectors, account: Acco
   const manuallyApproved = order.status === 'queued' && (await db.event.count({ where: { orderId: order.id, type: 'order.decision' } })) > 0;
   const decision: LadderDecision = decide({
     margin,
-    smallLossToleranceCents: account.smallLossToleranceCents,
+    floorPct: pricing.rule.floorPct,
     stock,
     now,
     orderCreatedAt: order.createdAt,
