@@ -110,6 +110,30 @@ export interface PayoutSchedule {
   newSellerHold: boolean;
 }
 
+/** An eBay order mapped to the shape `POST /webhooks/ebay` and the order poller feed to the pipeline. */
+export interface NormalisedEbayOrder {
+  /** The REST (Fulfillment API) order id; what `createShippingFulfillment` needs. */
+  ebayOrderId: string;
+  /** Legacy item id of the (single) line item = the listingId returned by publish. */
+  ebayItemId: string;
+  buyerName: string;
+  shipTo: Address;
+  salePriceCents: Cents;
+  buyerShippingCents: Cents;
+  createdAt: string;
+}
+
+/** An order `listNewOrders` could not map safely (multi-line, quantity > 1, non-USD, no address...). Never fulfilled blindly. */
+export interface SkippedEbayOrder {
+  ebayOrderId: string;
+  reason: string;
+}
+
+export interface NewOrdersResult {
+  orders: NormalisedEbayOrder[];
+  skipped: SkippedEbayOrder[];
+}
+
 export interface EbayConnector {
   createListing(input: EbayListingInput): Promise<EbayListingRef>;
   updateListing(ebayItemId: string, patch: Partial<EbayListingInput>): Promise<void>;
@@ -118,6 +142,8 @@ export interface EbayConnector {
   createShippingFulfillment(input: EbayFulfillmentInput): Promise<void>;
   sendBuyerMessage(ebayOrderId: string, body: string): Promise<void>;
   getPayoutSchedule(): Promise<PayoutSchedule>;
+  /** Real eBay only: paid, unshipped orders created at or after `since`. Mock mode creates orders via simulate instead. */
+  listNewOrders?(since: Date): Promise<NewOrdersResult>;
 }
 
 /** Thrown by real connectors when the credentials they need are not configured. */
