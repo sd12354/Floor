@@ -68,6 +68,7 @@ interface ComplianceResult { ok: true } | { ok: false; code: 'SUPPLIER_NOT_ALLOW
 - `PATCH /account` body: partial `{ name, pricingRule, fees, dailySpendCapCents, smallLossToleranceCents, handlingTimeDays }`
 - `POST /account/ebay/connect` → in mock mode marks connected with `ebayUsername: "demo_seller"`; in real mode returns `{ authorizeUrl }` (the URL carries a random single-use `state`; `501 NOT_CONFIGURED` if `FLOOR_SECRET_KEY` is missing or not 32 bytes)
 - `GET  /account/ebay/callback?code=&state=` (public, real mode only; see v1.4)
+- `POST /account/ebay/setup` body `{ location: { addressLine1, city, stateOrProvince, postalCode, country: 'US' }, categoryQuery? }` → listing basics ids (see v1.5)
 - `POST /suppliers` body `{ supplier, credentials?: {} }` → SupplierConnection (mock needs none)
 - `DELETE /suppliers/:id`
 
@@ -255,3 +256,26 @@ Required configuration for `createListing`: `EBAY_FULFILLMENT_POLICY_ID`, `EBAY_
 - Buyer messaging (above), multi-line and multi-quantity orders (above), and a Finances API sandbox host (`apiz.sandbox.ebay.com` is assumed by analogy; Finances may not be available in the sandbox).
 - Carrier codes are passed to eBay as the supplier reports them; eBay expects its own `ShippingCarrierCodeType` values, so an unknown carrier may be rejected and the tracking push retried.
 - eBay account-deletion notifications (a marketplace requirement for production keysets) are not handled.
+
+## eBay listing basics setup (v1.5)
+
+`POST /api/v1/account/ebay/setup` (session-authed) does the one-time eBay prerequisites for listing and returns the ids for the owner to paste into `apps/api/.env`. The Settings page has a card "Set up eBay listing basics" that calls it.
+
+Body: `{ location: { addressLine1, city, stateOrProvince, postalCode, country: "US" }, categoryQuery?: string, shippingCarrierCode?: string, shippingServiceCode?: string }`. `country` must be `US` (everything is created for `EBAY_US`). The address is never invented or stored: it is sent to eBay as the ship-from location. The two optional shipping fields override the service on the fulfillment policy (default `USPS` / `USPSPriority`); eBay validates the pair and the sandbox accepts fewer codes than production.
+
+Response `200`: `{ fulfillmentPolicyId, paymentPolicyId, returnPolicyId, merchantLocationKey, categorySuggestions: [{ categoryId, name }], envLines, reused: { fulfillmentPolicy, paymentPolicy, returnPolicy, location }, notes: string[] }`. `envLines` is five lines (`EBAY_FULFILLMENT_POLICY_ID`, `EBAY_PAYMENT_POLICY_ID`, `EBAY_RETURN_POLICY_ID`, `EBAY_MERCHANT_LOCATION_KEY`, and `EBAY_DEFAULT_CATEGORY_ID` set to the best suggestion, or a commented placeholder when there is none). **Floor does not write `.env` and stores none of these values**; it only returns them (an `ebay.setup` audit event records which pieces were reused and the location key). The five variables are read from the environment exactly as before.
+
+Errors: `400 VALIDATION`; `409 EBAY_NOT_CONNECTED` (no stored OAuth tokens and no `EBAY_USER_TOKEN`); `409 EBAY_REAUTH_REQUIRED` (eBay refused a permission or the refresh token: reconnect eBay); `502 EBAY_API_ERROR` (eBay rejected a step; the message carries eBay's text). Mock mode needs no credentials and returns fixed demo ids (`6000000001`..`6000000003`, key `floor-default`, demo categories) with a note that nothing was created.
+
+What it does against eBay (`RealEbay.setupListingBasics`, idempotent; names start with "Floor"):
+1. `GET /sell/account/v1/program/get_opted_in_programs`; if `SELLING_POLICY_MANAGEMENT` is missing, `POST /program/opt_in {programType}`. An "already exists" answer (409 / error 25803) is fine. eBay says opt-in can take up to 24 hours; a note says so.
+2. For each of fulfillment, payment and return: `GET /sell/account/v1/{fulfillment|payment|return}_policy?marketplace_id=EBAY_US`; reuse the policy with the exact Floor name, else any policy whose name starts with "Floor"; otherwise `POST` it. If the create fails with 400/409 (duplicate name or a racing run) it lists again and reuses.
+   - Fulfillment `Floor - free shipping, ships in 3 days`: handling 3 `DAY`, one `DOMESTIC` `FLAT_RATE` service with `freeShipping: true`, `categoryTypes ALL_EXCLUDING_MOTORS_VEHICLES`.
+   - Payment `Floor - immediate payment`: `immediatePay: true`, no payment methods listed (eBay managed payments).
+   - Return `Floor - 30 day returns`: accepted, 30 `DAY`, `MONEY_BACK`, `returnShippingCostPayer: BUYER`.
+3. Inventory location: `GET /sell/inventory/v1/location/floor-default`; if 404, `POST` it (`locationTypes: [WAREHOUSE]`, `merchantLocationStatus: ENABLED`, the supplied address). A create that races is reused.
+4. With `categoryQuery`: `GET /commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=EBAY_US`, then `GET /commerce/taxonomy/v1/category_tree/{id}/get_category_suggestions?q=`; the first five `{ categoryId, categoryName }` are returned. eBay does not support suggestions in the sandbox (placeholder names), and a note says so.
+
+Scopes: all calls use scopes already in `DEFAULT_SCOPES` (`sell.account`, `sell.inventory`, and the base `api_scope` for Taxonomy), so no reconnect is needed unless an older connection lacks one; in that case eBay answers 403 and the API returns `409 EBAY_REAUTH_REQUIRED` ("Reconnect eBay ...").
+
+Web: after eBay redirects back with `?ebay=connected|denied|failed`, the app shows a toast once (also when the app then sends an unconnected account to onboarding) and removes the parameter.

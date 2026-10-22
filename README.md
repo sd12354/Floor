@@ -32,7 +32,7 @@ Mock mode is the default and needs nothing. Real mode (`FLOOR_MODE=real`) uses t
 
 1. Create an eBay developer account and a **sandbox keyset** at developer.ebay.com; create a sandbox seller test user (Sandbox > Create a test user). Create a **RuName** for the keyset whose *accepted URL* is `http://127.0.0.1:4000/api/v1/account/ebay/callback` (use your tunnel URL if the browser is on another machine).
 2. In the sandbox seller account, opt in to business policies and create a fulfillment (shipping), payment and return policy, plus an inventory location (`createInventoryLocation`). Note the three policy ids, the location key, and a leaf category id.
-3. Create `apps/api/.env` (never commit it):
+3. You can skip the policy ids, location key and category for now: after step 4 Floor can create them for you (see "Set up my eBay account" below). Create `apps/api/.env` (never commit it):
 
 ```bash
 FLOOR_MODE=real
@@ -50,6 +50,8 @@ WEB_ORIGIN=http://localhost:5173
 
 4. `pnpm --filter @floor/api db:setup` (after pulling schema changes, `db:generate` then `db:push`), `pnpm dev`, sign up, then **Connect eBay** in onboarding/Settings. You sign in on eBay's sandbox consent page and land back on Floor connected.
 5. Add a supplier (the manual supplier works in real mode), list a product, publish, and buy it with a sandbox buyer account. The scheduler imports the paid order within `EBAY_ORDER_POLL_MS` (60 s) and runs it through the same pipeline as mock orders.
+
+**Set up my eBay account (one time).** After connecting eBay, open Settings and use the card **Set up eBay listing basics**: enter your US ship-from address (and, optionally, what you will sell so eBay can suggest a category) and press **Set up my eBay account**. Floor opts your account in to business policies, creates free-shipping / 30-day-return / immediate-payment policies and an inventory location named `floor-default` (or reuses ones named "Floor ..." that already exist, so pressing it again is safe), and shows five `EBAY_...` lines. Copy them into `apps/api/.env` and restart Floor; Floor never writes that file for you. In the sandbox, category suggestions are placeholders (eBay does not support them there) and the shipping service code may need an override; production accepts the defaults. Mock mode shows demo values.
 
 Not automated in real mode: buyer messages (a logged no-op), orders with several line items or quantity > 1 (skipped and logged), and buyer shipping/handling time (taken from your eBay fulfillment policy; keep it free shipping to match Floor's price math). CJdropshipping and Spocket adapters are still stubs. Details and known gaps: `docs/CONTRACT.md` -> "Real eBay adapter".
 
