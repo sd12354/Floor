@@ -52,7 +52,7 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
   app.decorate('connectors', connectors);
   app.decorate('jobs', buildJobs(db, connectors, config, app.log));
 
-  await app.register(cors, { origin: config.nodeEnv === 'production' ? config.corsOrigins : true, credentials: true });
+  await app.register(cors, { origin: config.corsOrigins, credentials: true });
   await app.register(errorPlugin);
   await app.register(prismaPlugin, { db });
   await app.register(accountPlugin);

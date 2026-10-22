@@ -14,6 +14,7 @@ const invalid = (): AppError => new AppError(401, 'INVALID_CREDENTIALS', 'Wrong 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const throttle = new LoginThrottle();
   const open = { config: { public: true } } as const;
+  void decoyHash(); // warm it so the first unknown-email login is not slower than later ones
 
   /** Tells the sign-in page whether to show "Sign in" or the one-time "Create your account". */
   app.get('/auth/status', open, async () => ({ hasUsers: (await app.db.user.count()) > 0 }));
@@ -24,7 +25,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if ((await app.db.user.count()) > 0) {
       throw new AppError(403, 'SIGNUP_CLOSED', 'An account already exists. Sign in instead.');
     }
-    const user = await createUser(app.db, body.email, await hashPassword(body.password));
+    const passwordHash = await hashPassword(body.password);
+    // The unique `slot` column makes a racing second signup fail here instead of creating a second account.
+    const user = await createUser(app.db, body.email, passwordHash).catch((err: unknown) => {
+      if ((err as { code?: string }).code === 'P2002') throw new AppError(403, 'SIGNUP_CLOSED', 'An account already exists. Sign in instead.');
+      throw err;
+    });
     const { token, expiresAt } = await createSession(app.db, user.id);
     return reply.code(201).send({ token, expiresAt: expiresAt.toISOString(), user: toPublicUser(user) });
   });
@@ -32,16 +38,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post('/auth/login', open, async (req) => {
     const body = parse(loginSchema, req.body ?? {});
     const email = normaliseEmail(body.email);
-    if (throttle.blocked(email)) {
+    if (!throttle.tryAttempt(email)) {
       throw new AppError(429, 'TOO_MANY_ATTEMPTS', 'Too many failed sign-ins. Try again in 15 minutes.');
     }
     const user = await app.db.user.findUnique({ where: { email } });
     // Always run one scrypt verify so an unknown email takes as long as a wrong password.
     const ok = await verifyPassword(body.password, user?.passwordHash ?? (await decoyHash()));
-    if (!user || !ok) {
-      throttle.fail(email);
-      throw invalid();
-    }
+    if (!user || !ok) throw invalid();
     throttle.clear(email);
     const { token, expiresAt } = await createSession(app.db, user.id);
     return { token, expiresAt: expiresAt.toISOString(), user: toPublicUser(user) };

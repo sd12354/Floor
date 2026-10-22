@@ -105,6 +105,8 @@ Floor is single-seller. Every `/api/v1` route needs `Authorization: Bearer <sess
 - `GET /auth/me` → `{ user }`. `POST /auth/logout` → 204, invalidates that token.
 - Missing, unknown or expired token → `401 UNAUTHENTICATED`.
 - Passwords are stored as scrypt hashes. The session token is 32 random bytes; only its SHA-256 is stored. Sessions last 30 days.
+- The API listens on `127.0.0.1` by default (`HOST` overrides) and CORS allows only `CORS_ORIGINS`, so a fresh install cannot be claimed from another machine or website before the owner signs up. A tunnel to `127.0.0.1:4000` is the way to reach it from a phone.
+- A user row has a unique `slot = 'owner'`, so two racing signups cannot both succeed.
 - `POST /webhooks/ebay` also requires a session token for now. Before real eBay notifications are enabled it needs its own signature check instead.
 
 ## Pipeline semantics (backend must implement exactly)

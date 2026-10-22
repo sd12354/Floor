@@ -108,6 +108,32 @@ describe('signup and login', () => {
   });
 });
 
+describe('concurrency', () => {
+  it('parallel wrong guesses cannot slip past the attempt cap', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 12 }, () => t.anon<Err>('POST', '/auth/login', { email: 'racer@floor.test', password: 'bad-guess' })),
+    );
+    expect(results.filter((r) => r.status === 401)).toHaveLength(5);
+    expect(results.filter((r) => r.status === 429)).toHaveLength(7);
+  });
+
+  it('two racing first-run signups create exactly one account', async () => {
+    const fresh = await createTestApp();
+    try {
+      await fresh.db.session.deleteMany();
+      await fresh.db.user.deleteMany();
+      const [a, b] = await Promise.all([
+        fresh.anon<AuthOk | Err>('POST', '/auth/signup', { email: 'one@floor.test', password: 'long-enough-pass' }),
+        fresh.anon<AuthOk | Err>('POST', '/auth/signup', { email: 'two@floor.test', password: 'long-enough-pass' }),
+      ]);
+      expect([a.status, b.status].sort()).toEqual([201, 403]);
+      expect(await fresh.db.user.count()).toBe(1);
+    } finally {
+      await fresh.close();
+    }
+  });
+});
+
 describe('first-run signup', () => {
   it('creates the first account, signs in, and then closes signup', async () => {
     const fresh = await createTestApp();

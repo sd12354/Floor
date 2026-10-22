@@ -43,27 +43,33 @@ export async function createUser(db: Db, email: string, passwordHash: string): P
   return db.user.create({ data: { id: newId('usr'), email: normaliseEmail(email), passwordHash } });
 }
 
-/** In-memory brute-force brake: 5 failed sign-ins per email per 15 minutes. Resets on restart, which is fine for one seller. */
+/**
+ * In-memory brute-force brake: 5 sign-in attempts per email per 15 minutes. An attempt is counted
+ * BEFORE the password is checked (so parallel guesses cannot slip past the cap) and refunded on success.
+ * Resets on restart, which is fine for one seller. Note that anyone who knows the owner's email can
+ * lock them out for 15 minutes by guessing; restarting the API clears it.
+ */
 export class LoginThrottle {
-  private readonly failures = new Map<string, { count: number; resetAt: number }>();
+  private readonly attempts = new Map<string, { count: number; resetAt: number }>();
 
-  blocked(email: string, now = Date.now()): boolean {
-    const f = this.failures.get(email);
-    if (!f) return false;
-    if (f.resetAt <= now) {
-      this.failures.delete(email);
-      return false;
+  /** Returns false when the email is locked, otherwise counts this attempt and returns true. */
+  tryAttempt(email: string, now = Date.now()): boolean {
+    if (this.attempts.size > 1000) this.sweep(now);
+    const a = this.attempts.get(email);
+    if (!a || a.resetAt <= now) {
+      this.attempts.set(email, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+      return true;
     }
-    return f.count >= LOGIN_MAX_FAILURES;
-  }
-
-  fail(email: string, now = Date.now()): void {
-    const f = this.failures.get(email);
-    if (!f || f.resetAt <= now) this.failures.set(email, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    else f.count += 1;
+    if (a.count >= LOGIN_MAX_FAILURES) return false;
+    a.count += 1;
+    return true;
   }
 
   clear(email: string): void {
-    this.failures.delete(email);
+    this.attempts.delete(email);
+  }
+
+  private sweep(now: number): void {
+    for (const [k, v] of this.attempts) if (v.resetAt <= now) this.attempts.delete(k);
   }
 }

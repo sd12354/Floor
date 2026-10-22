@@ -59,7 +59,8 @@ async function request<T>(method: string, path: string, opts: { body?: unknown; 
     }
     // An expired or revoked session: drop the token so the app returns to the sign-in page.
     // Wrong-password responses from the sign-in form itself are not a lost session.
-    if (res.status === 401 && code === 'UNAUTHENTICATED') clearToken();
+    // Only if it is still the token this request used, so a late 401 cannot wipe a fresh sign-in.
+    if (res.status === 401 && code === 'UNAUTHENTICATED' && getToken() === token) clearToken();
     throw new FloorApiError(res.status, code, message, details);
   }
   if (res.status === 204) return undefined as T;

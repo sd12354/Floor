@@ -187,6 +187,8 @@ model User {
   id           String   @id
   email        String   @unique
   passwordHash String
+  // Always 'owner' and unique, so the database itself refuses a second account even if two signups race.
+  slot         String   @unique @default("owner")
   createdAt    DateTime @default(now())
 
   sessions Session[]
