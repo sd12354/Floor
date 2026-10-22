@@ -134,6 +134,14 @@ export interface NewOrdersResult {
   skipped: SkippedEbayOrder[];
 }
 
+/** An ad (Promoted Listings Standard, cost per sale) for one listing. */
+export interface EbayAdResult {
+  campaignId: string;
+  adId: string;
+  /** The ad rate now on the ad: eBay charges this share of the sale price on each sale that comes through the ad. */
+  ratePct: number;
+}
+
 export interface EbayConnector {
   createListing(input: EbayListingInput): Promise<EbayListingRef>;
   updateListing(ebayItemId: string, patch: Partial<EbayListingInput>): Promise<void>;
@@ -144,6 +152,10 @@ export interface EbayConnector {
   getPayoutSchedule(): Promise<PayoutSchedule>;
   /** Real eBay only: paid, unshipped orders created at or after `since`. Mock mode creates orders via simulate instead. */
   listNewOrders?(since: Date): Promise<NewOrdersResult>;
+  /** Promoted ads: make sure the listing has an ad at exactly this rate (find-or-create campaign, create or re-rate the ad). Idempotent. */
+  promoteListing?(ebayItemId: string, ratePct: number): Promise<EbayAdResult>;
+  /** Promoted ads: remove the listing's ad, if any. Idempotent. */
+  unpromoteListing?(ebayItemId: string): Promise<void>;
 }
 
 /** Thrown by real connectors when the credentials they need are not configured. */

@@ -1,6 +1,7 @@
 export * from './types.js';
 export * from './money.js';
 export * from './fees.js';
+export * from './promoted.js';
 export * from './margin.js';
 export * from './pricing.js';
 export * from './ladder.js';
@@ -11,6 +12,7 @@ export { MockEbay, type MockEbayOptions, type MockEbayListing } from './connecto
 export { MOCK_CATEGORIES, NO_IMAGE_SKUS, SEED_ROWS, SUPPLIER_BOILERPLATE } from './connectors/mock/catalog.js';
 export { mulberry32, randInt } from './connectors/mock/rng.js';
 export { RealEbay, DEFAULT_SCOPES, EbayApiError, EbayReauthRequiredError, type EbayOfferRef, type EbayTokens, type FetchLike, type RealEbayConfig, type TokenStore } from './connectors/real/ebay.js';
+export { AD_CAMPAIGN_NAME } from './connectors/real/ebayAds.js';
 export { SETUP_NAMES, type CategorySuggestion, type EbaySetupInput, type EbaySetupLocation, type EbaySetupResult } from './connectors/real/ebaySetup.js';
 export { mapEbayOrder, mapEbayOrders, type EbayOrder } from './connectors/real/ebayOrders.js';
 export { RealCjDropshipping, type CjConfig } from './connectors/real/cjdropshipping.js';

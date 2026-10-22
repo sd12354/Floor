@@ -1,7 +1,7 @@
 import type { EbayTokens, FetchLike, RealEbayConfig, TokenStore } from '../src/index.js';
 
 export interface Call { url: string; method: string; headers: Record<string, string>; body: string | undefined }
-export type Reply = { status?: number; json?: unknown };
+export type Reply = { status?: number; json?: unknown; headers?: Record<string, string> };
 
 /** Fake fetch: replies are consumed in order per call; every call is recorded. No network. */
 export function fakeFetch(replies: Reply[]): { fetch: FetchLike; calls: Call[] } {
@@ -11,7 +11,7 @@ export function fakeFetch(replies: Reply[]): { fetch: FetchLike; calls: Call[] }
     const r = replies.shift();
     if (!r) throw new Error(`unexpected request ${init?.method} ${url}`);
     const text = r.json === undefined ? '' : JSON.stringify(r.json);
-    return { status: r.status ?? 200, headers: { get: () => null }, text: async () => text };
+    return { status: r.status ?? 200, headers: { get: (n: string) => r.headers?.[n.toLowerCase()] ?? null }, text: async () => text };
   };
   return { fetch, calls };
 }

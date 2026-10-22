@@ -1,6 +1,7 @@
 import { centsToDecimal } from '../../money.js';
 import {
   NotConfiguredError,
+  type EbayAdResult,
   type EbayConnector,
   type EbayFulfillmentInput,
   type EbayListingInput,
@@ -8,6 +9,7 @@ import {
   type NewOrdersResult,
   type PayoutSchedule,
 } from '../types.js';
+import { EbayAds } from './ebayAds.js';
 import { EbayAuth } from './ebayAuth.js';
 import { EbayHttp } from './ebayHttp.js';
 import { mapEbayOrders, type EbayOrder, type EbayOrderPage } from './ebayOrders.js';
@@ -46,6 +48,7 @@ export class RealEbay implements EbayConnector {
   private readonly env: EbayEnv;
   private readonly auth: EbayAuth;
   private readonly http: EbayHttp;
+  private readonly ads: EbayAds;
   private readonly offerCache = new Map<string, EbayOfferRef>();
   private readonly skuCache = new Map<string, string>();
 
@@ -54,6 +57,7 @@ export class RealEbay implements EbayConnector {
     this.baseUrl = this.env === 'production' ? 'https://api.ebay.com' : 'https://api.sandbox.ebay.com';
     this.auth = new EbayAuth(config, this.env);
     this.http = new EbayHttp(this.auth, this.env, config.fetch ?? ((url, init) => fetch(url, init)));
+    this.ads = new EbayAds(this.http, config.marketplaceId ?? 'EBAY_US', config.now ?? (() => new Date()), config.log);
   }
 
   private get marketplaceId(): string {
@@ -227,9 +231,19 @@ export class RealEbay implements EbayConnector {
     await this.bulkPriceQuantity(await this.offerFor(ebayItemId), undefined, quantity);
   }
 
-  /** Withdraw = end the listing; the offer and inventory item stay (so it can be republished). */
+  /** Promoted ads: ensure the Floor campaign exists and the listing has an ad at this rate. Idempotent; see ebayAds.ts. */
+  promoteListing(ebayItemId: string, ratePct: number): Promise<EbayAdResult> {
+    return this.ads.promote(ebayItemId, ratePct);
+  }
+
+  async unpromoteListing(ebayItemId: string): Promise<void> {
+    await this.ads.remove(ebayItemId);
+  }
+
+  /** Withdraw = end the listing; the offer and inventory item stay (so it can be republished). Its ad is removed first, best effort. */
   async endListing(ebayItemId: string): Promise<void> {
     const offer = await this.offerFor(ebayItemId);
+    await this.ads.remove(ebayItemId).catch((err: unknown) => this.config.log?.('Could not remove the promoted ad before ending the listing', { ebayItemId, error: String(err) }));
     await this.http.request({ method: 'POST', path: `${INV}/offer/${offer.offerId}/withdraw` });
     this.offerCache.delete(ebayItemId);
   }

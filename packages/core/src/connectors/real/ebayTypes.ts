@@ -72,5 +72,7 @@ export const DEFAULT_SCOPES: readonly string[] = [
   'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
   'https://api.ebay.com/oauth/api_scope/sell.finances',
   'https://api.ebay.com/oauth/api_scope/sell.account',
+  /** Promoted ads (Marketing API). Added in contract v1.6: accounts connected earlier must reconnect once to grant it. */
+  'https://api.ebay.com/oauth/api_scope/sell.marketing',
   'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
 ];

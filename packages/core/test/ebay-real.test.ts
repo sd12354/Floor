@@ -184,10 +184,11 @@ describe('listings', () => {
   });
 
   it('endListing withdraws the offer', async () => {
-    const f = fakeFetch([{ json: { offers: [{ offerId: 'OFF1', status: 'PUBLISHED', listing: { listingId: 'L1' } }] } }, { json: { listingId: 'L1' } }]);
+    // offer lookup, then the (best-effort) promoted-ad cleanup finds no Floor campaign, then the withdraw
+    const f = fakeFetch([{ json: { offers: [{ offerId: 'OFF1', status: 'PUBLISHED', listing: { listingId: 'L1' } }] } }, { json: { campaigns: [] } }, { json: { listingId: 'L1' } }]);
     await new RealEbay({ ...baseCfg, fetch: f.fetch, tokenStore: store(), resolveSku: async () => 'S' }).endListing('L1');
-    expect(f.calls[1]?.method).toBe('POST');
-    expect(f.calls[1]?.url).toBe('https://api.sandbox.ebay.com/sell/inventory/v1/offer/OFF1/withdraw');
+    expect(f.calls[2]?.method).toBe('POST');
+    expect(f.calls[2]?.url).toBe('https://api.sandbox.ebay.com/sell/inventory/v1/offer/OFF1/withdraw');
   });
 });
 
