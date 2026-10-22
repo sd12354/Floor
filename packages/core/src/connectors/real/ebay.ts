@@ -65,6 +65,11 @@ export class RealEbay implements EbayConnector {
     return this.auth.authorizeUrl(state, scopes);
   }
 
+  /** True when a user token exists (stored OAuth tokens, or the static EBAY_USER_TOKEN fallback). Makes no request. */
+  async hasCredentials(): Promise<boolean> {
+    return Boolean(await this.config.tokenStore?.get()) || Boolean(this.config.userToken);
+  }
+
   exchangeCode(code: string): Promise<EbayTokens> {
     return this.auth.exchangeCode(code);
   }
