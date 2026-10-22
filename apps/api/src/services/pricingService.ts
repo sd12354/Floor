@@ -8,6 +8,7 @@ import {
   type ComplianceResult,
   type FeeConfig,
   type PricingRule,
+  withPromoted,
 } from '@floor/core';
 import type { Db } from '../db/client.js';
 import type { Account, Product } from '../generated/prisma/client.js';
@@ -20,8 +21,17 @@ export interface AccountPricing {
   toolFeeCents: number;
 }
 
+/**
+ * The fee table every price, floor, margin and order decision uses. With promoted ads on, the ad rate REPLACES the
+ * stored promotedPct (it is the same fee, never added twice); with them off the stored value (default 0) stands.
+ */
+export function effectiveFees(account: Pick<Account, 'fees' | 'promotedAdsEnabled' | 'promotedAdRatePct'>): FeeConfig {
+  const fees = asFees(account.fees);
+  return account.promotedAdsEnabled ? withPromoted(fees, account.promotedAdRatePct) : fees;
+}
+
 export function accountPricing(account: Account): AccountPricing {
-  return { rule: asPricingRule(account.pricingRule), fees: asFees(account.fees), handlingTimeDays: account.handlingTimeDays, toolFeeCents: 0 };
+  return { rule: asPricingRule(account.pricingRule), fees: effectiveFees(account), handlingTimeDays: account.handlingTimeDays, toolFeeCents: 0 };
 }
 
 /** Load blocked brand patterns (seed + VeRO notices). Falls back to the core seed if the table is empty. */

@@ -5,6 +5,7 @@ import { notFound, unprocessable } from '../errors.js';
 import type { Account, Listing } from '../generated/prisma/client.js';
 import { asImages } from '../serialize.js';
 import { id, writeEvent } from './audit.js';
+import { reconcileAd } from './promotedAds.js';
 import { accountPricing, gateProduct, generateTitle, loadBlockedBrands, marginAt, projectPrice } from './pricingService.js';
 
 export interface CreateResult {
@@ -95,7 +96,9 @@ export async function patchListing(db: Db, connectors: Connectors, account: Acco
     });
   }
   await writeEvent(db, { accountId: account.id, listingId, type: 'listing.updated', payload: { ...patch } });
-  return updated;
+  // Pausing takes the ad off, resuming puts it back.
+  if (patch.status !== undefined) await reconcileAd(db, connectors, account, updated);
+  return (await db.listing.findUnique({ where: { id: listingId } })) ?? updated;
 }
 
 export interface PublishResult {
@@ -144,7 +147,9 @@ export async function publishListings(db: Db, connectors: Connectors, account: A
     }
     const active = await db.listing.update({ where: { id: listingId }, data: { status: 'active', ebayItemId, pauseReason: null, lastSyncAt: new Date() } });
     await writeEvent(db, { accountId: account.id, listingId, type: 'listing.published', payload: { ebayItemId } });
-    published.push(active);
+    // The listing is live; a failed ad never undoes that (reconcileAd logs listing.promote_failed and the sync retries).
+    await reconcileAd(db, connectors, account, active);
+    published.push((await db.listing.findUnique({ where: { id: listingId } })) ?? active);
   }
   return { published, blocked };
 }

@@ -37,7 +37,7 @@ export function asAddress(v: unknown): Address {
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
-export function serializeAccount(a: Account, extra: { supplierConnections: SupplierConnection[]; mode: 'mock' | 'real' }) {
+export function serializeAccount(a: Account, extra: { supplierConnections: SupplierConnection[]; mode: 'mock' | 'real'; promotedAdsPending?: number }) {
   return {
     id: a.id,
     name: a.name,
@@ -50,6 +50,9 @@ export function serializeAccount(a: Account, extra: { supplierConnections: Suppl
     smallLossToleranceCents: a.smallLossToleranceCents,
     handlingTimeDays: a.handlingTimeDays,
     newSeller: a.newSeller,
+    promotedAdsEnabled: a.promotedAdsEnabled,
+    promotedAdRatePct: a.promotedAdRatePct,
+    promotedAdsPending: extra.promotedAdsPending ?? 0,
     createdAt: a.createdAt.toISOString(),
     supplierConnections: extra.supplierConnections.map(serializeSupplierConnection),
   };
@@ -94,6 +97,8 @@ export function serializeListing(l: Listing) {
     status: l.status,
     pauseReason: l.pauseReason ?? undefined,
     projectedMarginPct: l.projectedMarginPct,
+    promoted: l.promotedRatePct !== null,
+    promotedRatePct: l.promotedRatePct ?? undefined,
     lastSyncAt: iso(l.lastSyncAt),
     createdAt: l.createdAt.toISOString(),
   };

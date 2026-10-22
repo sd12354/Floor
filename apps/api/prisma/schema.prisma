@@ -24,6 +24,9 @@ model Account {
   smallLossToleranceCents Int      @default(500)
   handlingTimeDays        Int      @default(3)
   newSeller               Boolean  @default(false)
+  // Promoted ads (v1.6): when on, promotedAdRatePct is the eBay ad rate and also the fee table's promotedPct.
+  promotedAdsEnabled      Boolean  @default(false)
+  promotedAdRatePct       Float    @default(0.02)
   createdAt               DateTime @default(now())
 
   supplierConnections SupplierConnection[]
@@ -88,6 +91,9 @@ model Listing {
   pauseReason        String?
   projectedMarginPct Float
   lastSyncAt         DateTime?
+  // Ad currently on eBay for this listing; promotedRatePct null = not promoted.
+  promotedAdId       String?
+  promotedRatePct    Float?
   createdAt          DateTime  @default(now())
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
