@@ -25,7 +25,11 @@ export function SimulateSaleDrawer({ listing, onClose }: { listing: ListingWithP
 
   const expected = (() => {
     if (!preview || !account) return '';
-    if (preview.netMarginPct >= account.pricingRule.floorPct) return 'Margin clears your floor, so Floor will order from the supplier immediately.';
+    if (preview.netMarginPct >= account.pricingRule.floorPct) {
+      return product?.supplier === 'manual'
+        ? 'Margin clears your floor, so the order will wait in To order for you to buy from your supplier.'
+        : 'Margin clears your floor, so Floor will order from the supplier immediately.';
+    }
     const outcome = preview.netProfitCents >= 0 ? `Net profit would be only ${formatCents(preview.netProfitCents)}` : `This order would lose ${formatCents(-preview.netProfitCents)}`;
     return `${outcome}, below your margin floor. Floor will hold the order and ask you to decide.`;
   })();
