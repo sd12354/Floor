@@ -6,6 +6,7 @@ import {
   RealEbay,
   RealSpocket,
   type EbayConnector,
+  type FetchLike,
   type Supplier,
   type SupplierConnector,
 } from '@floor/core';
@@ -13,6 +14,7 @@ import { nanoid } from 'nanoid';
 import type { AppConfig } from './config.js';
 import type { Db } from './db/client.js';
 import { AppError } from './errors.js';
+import { DbTokenStore } from './services/ebayTokenStore.js';
 import { ProductTableLookup } from './services/manualCatalog.js';
 
 export interface Connectors {
@@ -25,22 +27,32 @@ export interface Connectors {
   /** Give the manual supplier its database. buildServer calls this; safe to call more than once. */
   bindDb(db: Db): void;
   supplier(name: string): SupplierConnector;
+  /** Route non-secret adapter diagnostics (e.g. the no-op buyer message) to the app logger. */
+  bindLogger(log: (message: string, meta?: Record<string, unknown>) => void): void;
   /** Only present in mock mode; exposed for tests and the simulate endpoint. */
   mockSupplier?: MockSupplier;
   mockEbay?: MockEbay;
 }
 
 /** Choose mock vs real connectors by FLOOR_MODE. Real connectors throw NotConfiguredError until credentials exist. */
-export function buildConnectors(config: AppConfig, db?: Db): Connectors {
+export function buildConnectors(config: AppConfig, db?: Db, opts: { fetch?: FetchLike } = {}): Connectors {
   const lookup = new ProductTableLookup();
-  if (db) lookup.bind(db);
+  const tokenStore = new DbTokenStore(config.secretKey);
+  let boundDb: Db | undefined;
+  let logger: (message: string, meta?: Record<string, unknown>) => void = () => undefined;
+  const bindDb = (d: Db): void => {
+    boundDb = d;
+    lookup.bind(d);
+    tokenStore.bind(d);
+  };
+  if (db) bindDb(db);
   const manualSupplier = new ManualSupplierConnector(lookup);
-  const bindDb = (d: Db): void => lookup.bind(d);
+  const bindLogger: Connectors['bindLogger'] = (log) => void (logger = log);
   if (config.mode === 'mock') {
     const mockSupplier = new MockSupplier({ seed: 42, trackingDelayMs: config.mockTrackingDelayMs });
     const mockEbay = new MockEbay({ idGen: () => `mock-${nanoid(10)}` });
     const suppliers: Connectors['suppliers'] = { mock: mockSupplier, manual: manualSupplier };
-    return { mode: 'mock', ebay: mockEbay, suppliers, mockSupplier, mockEbay, manualSupplier, bindDb, supplier: (n) => pick(suppliers, n) };
+    return { mode: 'mock', ebay: mockEbay, suppliers, mockSupplier, mockEbay, manualSupplier, bindDb, bindLogger, supplier: (n) => pick(suppliers, n) };
   }
   const suppliers: Connectors['suppliers'] = {
     cjdropshipping: new RealCjDropshipping({ apiKey: config.cjApiKey }),
@@ -49,10 +61,21 @@ export function buildConnectors(config: AppConfig, db?: Db): Connectors {
   };
   return {
     mode: 'real',
-    ebay: new RealEbay(config.ebay),
+    ebay: new RealEbay({
+      ...config.ebay,
+      tokenStore,
+      // Floor stores only the eBay listing id; eBay's offer API is keyed by SKU, which is the product's supplierSku.
+      resolveSku: async (ebayItemId) => {
+        const l = await boundDb?.listing.findFirst({ where: { ebayItemId }, include: { product: true } });
+        return l?.product.supplierSku ?? null;
+      },
+      log: (m, meta) => logger(m, meta),
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    }),
     suppliers,
     manualSupplier,
     bindDb,
+    bindLogger,
     supplier: (n) => pick(suppliers, n),
   };
 }

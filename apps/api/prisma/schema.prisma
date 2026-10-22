@@ -32,6 +32,8 @@ model Account {
   ledger              LedgerEntry[]
   events              Event[]
   messages            Message[]
+  ebayCredential      EbayCredential?
+  ebayOAuthStates     EbayOAuthState[]
 }
 
 model SupplierConnection {
@@ -207,5 +209,34 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+// eBay OAuth tokens for an account. `ciphertext` is AES-256-GCM (key from FLOOR_SECRET_KEY) over a JSON
+// {accessToken, refreshToken}; never plaintext. Expiry columns are not secret and let us decide when to refresh.
+model EbayCredential {
+  accountId        String    @id
+  ciphertext       String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  // Orders created before this were never imported; the poller advances it.
+  ordersSyncedAt   DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+// Single-use OAuth `state`. `id` is the SHA-256 of the random state sent to eBay (the raw value is never stored).
+// Binds the unauthenticated callback to the seller who started the flow.
+model EbayOAuthState {
+  id        String    @id
+  accountId String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
   @@index([expiresAt])
 }

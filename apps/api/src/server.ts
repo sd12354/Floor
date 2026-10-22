@@ -11,6 +11,7 @@ import { accountRoutes } from './routes/account.js';
 import { authRoutes } from './routes/auth.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { discoveryRoutes } from './routes/discovery.js';
+import { ebayCallbackRoutes } from './routes/ebayCallback.js';
 import { ledgerRoutes } from './routes/ledger.js';
 import { listingRoutes } from './routes/listings.js';
 import { messageRoutes } from './routes/messages.js';
@@ -53,6 +54,7 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
 
   app.decorate('config', config);
   app.decorate('connectors', connectors);
+  connectors.bindLogger((message, meta) => app.log.warn(meta ?? {}, message));
   app.decorate('jobs', buildJobs(db, connectors, config, app.log));
 
   await app.register(cors, { origin: config.corsOrigins, credentials: true });
@@ -68,6 +70,7 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
       await api.register(authGuard);
       await api.register(authRoutes);
       await api.register(accountRoutes);
+      await api.register(ebayCallbackRoutes);
       await api.register(supplierRoutes);
       await api.register(discoveryRoutes);
       await api.register(listingRoutes);

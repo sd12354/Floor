@@ -1,4 +1,3 @@
-import { RealEbay } from '@floor/core';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { badRequest } from '../errors.js';
@@ -6,6 +5,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { parse } from '../plugins/validate.js';
 import { asFees, asPricingRule, serializeAccount } from '../serialize.js';
 import { writeEvent } from '../services/audit.js';
+import { beginEbayConnect } from '../services/ebayOAuth.js';
 
 const feesSchema = z.object({
   finalValueFeePct: z.number().min(0).max(1).optional(),
@@ -69,8 +69,6 @@ export async function accountRoutes(app: FastifyInstance): Promise<void> {
       await writeEvent(app.db, { accountId: account.id, type: 'ebay.connected', payload: { username: 'demo_seller' } });
       return load(account.id);
     }
-    const ebay = app.connectors.ebay as RealEbay;
-    const authorizeUrl = ebay instanceof RealEbay ? ebay.authorizeUrl() : '';
-    return reply.send({ authorizeUrl });
+    return reply.send(await beginEbayConnect(app.db, app.connectors, app.config, account.id));
   });
 }
