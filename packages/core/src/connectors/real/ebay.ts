@@ -11,6 +11,7 @@ import {
 import { EbayAuth } from './ebayAuth.js';
 import { EbayHttp } from './ebayHttp.js';
 import { mapEbayOrders, type EbayOrder, type EbayOrderPage } from './ebayOrders.js';
+import { runEbaySetup, type EbaySetupInput, type EbaySetupResult } from './ebaySetup.js';
 import { EbayApiError, DEFAULT_SCOPES, type EbayEnv, type EbayTokens, type RealEbayConfig } from './ebayTypes.js';
 
 export { DEFAULT_SCOPES, EbayApiError, EbayReauthRequiredError } from './ebayTypes.js';
@@ -72,6 +73,11 @@ export class RealEbay implements EbayConnector {
   async getUsername(): Promise<string | null> {
     const r = await this.http.request<{ username?: string }>({ method: 'GET', host: 'apiz', path: '/commerce/identity/v1/user/' });
     return r.json?.username ?? null;
+  }
+
+  /** One-time seller setup (business policies, inventory location, category suggestions). Idempotent; see ebaySetup.ts. */
+  setupListingBasics(input: EbaySetupInput): Promise<EbaySetupResult> {
+    return runEbaySetup(this.http, this.env, input);
   }
 
   private requireListingConfig(): { fulfillmentPolicyId: string; paymentPolicyId: string; returnPolicyId: string; merchantLocationKey: string; categoryId: string } {

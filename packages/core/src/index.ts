@@ -11,6 +11,7 @@ export { MockEbay, type MockEbayOptions, type MockEbayListing } from './connecto
 export { MOCK_CATEGORIES, NO_IMAGE_SKUS, SEED_ROWS, SUPPLIER_BOILERPLATE } from './connectors/mock/catalog.js';
 export { mulberry32, randInt } from './connectors/mock/rng.js';
 export { RealEbay, DEFAULT_SCOPES, EbayApiError, EbayReauthRequiredError, type EbayOfferRef, type EbayTokens, type FetchLike, type RealEbayConfig, type TokenStore } from './connectors/real/ebay.js';
+export { SETUP_NAMES, type CategorySuggestion, type EbaySetupInput, type EbaySetupLocation, type EbaySetupResult } from './connectors/real/ebaySetup.js';
 export { mapEbayOrder, mapEbayOrders, type EbayOrder } from './connectors/real/ebayOrders.js';
 export { RealCjDropshipping, type CjConfig } from './connectors/real/cjdropshipping.js';
 export { RealSpocket, type SpocketConfig } from './connectors/real/spocket.js';
