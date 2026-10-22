@@ -1,4 +1,4 @@
-# Floor — API & data contract (v1)
+# Floor — API & data contract (v1.6)
 
 Backend (`apps/api`) implements this; frontend (`apps/web`) consumes it. Both sides may add fields, never remove or rename without updating this file. All money is integer cents. All timestamps ISO 8601 UTC. Base path `/api/v1`. JSON only. Errors: `{ "error": { "code": string, "message": string } }` with 4xx/5xx.
 
@@ -222,7 +222,7 @@ CORS_ORIGINS=http://localhost:5173
 
 `RealEbay` (`packages/core/src/connectors/real/`) talks to the eBay Sell APIs. `EBAY_ENV=sandbox` (default) uses `*.sandbox.ebay.com`, `production` uses `*.ebay.com`; `FLOOR_MODE=mock` is unchanged and never touches any of this. All network access goes through an injected `fetch` (tests use a fake).
 
-**OAuth.** `POST /account/ebay/connect` creates a random 32-byte `state` (stored only as a SHA-256, valid 10 minutes, single use, bound to the account) and returns eBay's consent URL (scopes: base, `sell.inventory`, `sell.fulfillment`, `sell.finances`, `sell.account`, `commerce.identity.readonly`). eBay redirects the browser to the RuName's accepted URL, which must be `<api origin>/api/v1/account/ebay/callback`.
+**OAuth.** `POST /account/ebay/connect` creates a random 32-byte `state` (stored only as a SHA-256, valid 10 minutes, single use, bound to the account) and returns eBay's consent URL (scopes: base, `sell.inventory`, `sell.fulfillment`, `sell.finances`, `sell.account`, `commerce.identity.readonly`, and from v1.6 `sell.marketing`). eBay redirects the browser to the RuName's accepted URL, which must be `<api origin>/api/v1/account/ebay/callback`.
 - `GET /account/ebay/callback?code=&state=` is the only unauthenticated route besides auth. The `state` is the only thing it trusts: unknown, malformed, expired or replayed state is `400 INVALID_STATE` and nothing is stored or requested. With a valid state it exchanges the code (`grant_type=authorization_code`, `redirect_uri` = RuName, HTTP Basic `clientId:clientSecret`, form-encoded), stores the tokens, sets `ebayConnected` and `ebayUsername` (Identity API, best effort), and redirects (302) to `<WEB_ORIGIN>/settings?ebay=connected`. A denied consent (`error=`) or failed exchange redirects with `ebay=denied` / `ebay=failed`; the state is consumed either way.
 - Tokens live in `EbayCredential`, AES-256-GCM encrypted (`v1:<base64 iv|tag|ciphertext>`) with `FLOOR_SECRET_KEY`. The key must decode to exactly 32 bytes. If it is unset, connecting returns `501 NOT_CONFIGURED` and nothing is ever stored. Rotating the key requires reconnecting eBay.
 - Access tokens (2 h) are refreshed automatically with the refresh token (`grant_type=refresh_token`, scopes omitted so the original consent applies) a minute before expiry and once after any 401, then the request is retried once. A refresh that eBay refuses, or an expired refresh token (about 18 months), raises `EbayReauthRequiredError`: the seller must reconnect. `EBAY_USER_TOKEN` is a fallback used only when no tokens are stored; it cannot be refreshed.
@@ -234,7 +234,7 @@ CORS_ORIGINS=http://localhost:5173
 | `createListing` | `PUT /sell/inventory/v1/inventory_item/{sku}` (`Content-Language: en-US`) -> `GET /offer?sku=` (reuse an existing offer, so a retry after a failed publish never duplicates) -> `POST /offer` -> `POST /offer/{offerId}/publish` -> `listingId` |
 | `updateListing` | price and quantity: `POST /bulk_update_price_quantity`; title/description/images: `GET` then `PUT /inventory_item/{sku}`, and for a description also `GET` + `PUT /offer/{offerId}` |
 | `setQuantity` | `POST /bulk_update_price_quantity` (0 keeps the listing live but out of stock) |
-| `endListing` | `POST /offer/{offerId}/withdraw` |
+| `endListing` | best-effort removal of the listing's promoted ad (v1.6), then `POST /offer/{offerId}/withdraw` |
 | `createShippingFulfillment` | `GET /sell/fulfillment/v1/order/{orderId}` (for `lineItemId`s; a `FULFILLED` order is skipped so retries are safe) -> `POST .../shipping_fulfillment { lineItems, shippedDate, shippingCarrierCode, trackingNumber }` |
 | `getPayoutSchedule` | `GET https://apiz.ebay.com/sell/finances/v1/seller_funds_summary`. Heuristic: funds on hold -> `{30, true}`, else `{3, false}` (eBay publishes no payout-delay field) |
 | `listNewOrders(since)` | `GET /sell/fulfillment/v1/order?filter=creationdate:[since..],orderfulfillmentstatus:{NOT_STARTED\|IN_PROGRESS}&limit=200` (paged) |
@@ -279,3 +279,38 @@ What it does against eBay (`RealEbay.setupListingBasics`, idempotent; names star
 Scopes: all calls use scopes already in `DEFAULT_SCOPES` (`sell.account`, `sell.inventory`, and the base `api_scope` for Taxonomy), so no reconnect is needed unless an older connection lacks one; in that case eBay answers 403 and the API returns `409 EBAY_REAUTH_REQUIRED` ("Reconnect eBay ...").
 
 Web: after eBay redirects back with `?ebay=connected|denied|failed`, the app shows a toast once (also when the app then sends an unconnected account to onboarding) and removes the parameter.
+
+## Promoted ads (v1.6)
+
+A switch, default **off**, that puts every live listing in an eBay Promoted Listings Standard ad (cost per sale: eBay charges the ad rate as a share of the sale price, only on a sale that comes through the ad) and prices that fee in.
+
+**Account** gains (PATCH-able fields marked *w*):
+- `promotedAdsEnabled: bool` *w*, default `false`.
+- `promotedAdRatePct: number` *w*, a decimal (`0.02` = 2%), default `0.02`. Validated `0.02 <= rate <= 1`; rounded to one decimal of a percent (`0.0254` becomes `0.025`) because eBay takes `bidPercentage` as a one-decimal string. `400 VALIDATION` below 2% or above 100%. `400 BAD_REQUEST` when `1 - effectiveVariablePct - targetPct <= 0` (fees plus ad rate leave no room for the target margin).
+- `promotedAdsPending: number` (read only): live listings whose ad is not yet as the settings say (waiting for a retry).
+
+**Listing** gains `promoted: bool` and `promotedRatePct?: number` (the ad currently on eBay). Prisma: `Account.promotedAdsEnabled Boolean @default(false)`, `Account.promotedAdRatePct Float @default(0.02)`, `Listing.promotedAdId String?`, `Listing.promotedRatePct Float?` (Postgres-compatible; applied by `db push`).
+
+**Fee math (no double counting).** The fee table every price, floor, margin and order decision uses is `effectiveFees(account)`: with the switch on, `promotedPct` is **replaced by** `promotedAdRatePct`; with it off the stored `fees.promotedPct` (default 0, for sellers who run ads themselves on eBay) stands. The rate is part of `effectiveVariablePct`, i.e. it is charged on the whole order total (item + buyer shipping) next to the final value fee, which is how eBay describes the base ("total sale amount, including item price, shipping and other applicable fees"; some third-party pages say item price only, so Floor errs on the high side). Listing price, floor, projected margin, order ladder and `ebayFeesCents` all read the same table. A listing whose ad failed is still priced and judged as if promoted (conservative).
+
+**Changing the switch or the rate while on** (PATCH /account) saves, then runs a sync sweep with `feesMoved` over the account's active and paused listings, before returning:
+- repriced to the new target when the move is within the usual 25% step, otherwise left alone;
+- a listing whose price is below its new floor, or for which no price can reach the floor margin, is paused (`pauseReason: below_floor`, eBay quantity 0, ad removed): it cannot sell below the floor;
+- ads follow the settings: created or re-rated for active listings, removed for paused, blocked and (switch off) all listings. The ad is written after the price, so a higher rate never goes live before the price that pays for it.
+A sweep error does not undo the saved setting (event `sync.failed`); the next sweep re-prices anything below its floor, and the order pipeline checks the margin at purchase time regardless.
+
+**Publish.** After the listing is live (and only then) Floor reconciles its ad. An ad failure never fails or blocks the publish: it writes event `listing.promote_failed` `{ ebayItemId, ratePct, message, willRetry: true }` and the stored ad state is left unchanged, so **every sync sweep retries** (also covers removals: `listing.unpromote_failed`). Success writes `listing.promoted` / `listing.unpromoted`. Pausing a listing (including the manual Pause) removes its ad; resuming puts it back. If the token lacks the marketing permission the message says to reconnect eBay (`EbayReauthRequiredError`).
+
+**Reconnect once.** `sell.marketing` was added to `DEFAULT_SCOPES`. An eBay connection made before v1.6 does not have it; the seller must press Connect eBay again once (the refresh token keeps the original consent). Until then promotion attempts fail with the reconnect message and the rest of Floor works normally.
+
+**Mock mode.** `MockEbay` records promoted listings in memory (`promoted: Map<ebayItemId, { campaignId, adId, ratePct }>`); everything above works with no credentials.
+
+**Core** (`RealEbay`, `packages/core/src/connectors/real/ebayAds.ts`; optional `EbayConnector.promoteListing(ebayItemId, ratePct)` and `unpromoteListing(ebayItemId)`; constants `MIN_AD_RATE_PCT`, `MAX_AD_RATE_PCT`, `normalizeAdRate`, `bidPercentageString` in `promoted.ts`). Idempotent find-or-create, like the account setup:
+1. `GET /sell/marketing/v1/ad_campaign?campaign_name=Floor - promoted listings`; use the first one not `ENDED` (resume it with `POST /ad_campaign/{id}/resume` if `PAUSED`); otherwise `POST /ad_campaign { campaignName, marketplaceId, startDate: now, fundingStrategy: { fundingModel: "COST_PER_SALE" } }` (id from the `Location` header, else looked up again). A 400/409 on create looks the campaign up again and reuses it. The id is cached per process.
+2. `GET /ad_campaign/{id}/ad?listing_ids={listingId}`: no ad -> `POST /ad_campaign/{id}/ad { listingId, bidPercentage: "2.5" }` (ad id from `Location`, else looked up); ad at another rate -> `POST /ad_campaign/{id}/ad/{adId}/update_bid { bidPercentage }`; same rate -> no write. A 400/409 on create re-checks for the ad before failing.
+3. Removal: find the ad (never creates a campaign) and `DELETE /ad_campaign/{id}/ad/{adId}`. `endListing` calls it first, best effort (a failure is logged and the listing still ends).
+A 403/401 from any of these becomes `EbayReauthRequiredError` ("Reconnect eBay ...").
+
+**Verified vs assumed** (from eBay's Marketing API reference and seller help pages; nothing was run against eBay): scope `https://api.ebay.com/oauth/api_scope/sell.marketing`; paths and methods above; ad rate is a percent string in `bidPercentage`; 201 + `Location` on create, no body; fee only on sales through the ad. **Not verified**: whether the sandbox supports the Marketing API; exact `createCampaign` required fields (we send name, marketplace, start date, CPS funding; `adRateStrategy` is not sent); the `listing_ids` filter on getAds and the campaign-name filter on getCampaigns (documented in eBay's typings, behaviour untested); what eBay does with an ad when its listing ends (we delete the ad first and never rely on it); the lowest accepted rate (help pages say 2%, the API reference text says 1.0, Floor enforces 2%); whether the fee base includes shipping and tax (see above); whether the seller needs an eBay Store subscription or must accept Promoted Listings terms before the API works in production (older docs say both).
+
+**Web.** Settings > Pricing and risk: switch "Promote new listings" and, when on, an "Ad rate" percent field (2.0% when first switched on), a plain-words explainer, and a notice when `promotedAdsPending > 0`. The example line ("An item that costs ... lists at ...") uses the effective fee table and says "including the X% promoted ad rate". The manual "Promoted listings rate" field is locked while the switch is on. Listings: a "Promoted" badge on promoted rows.
