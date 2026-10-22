@@ -11,6 +11,8 @@ import type {
   DashboardResponse,
   DiscoveryItem,
   DiscoveryResponse,
+  EbaySetupInput,
+  EbaySetupResponse,
   LedgerResponse,
   Listing,
   ManualProductInput,
@@ -68,6 +70,9 @@ export function useConnectEbay() {
     onSuccess: () => inv('account'),
   });
 }
+
+export const useEbaySetup = () =>
+  useMutation({ mutationFn: (body: EbaySetupInput) => api.post<EbaySetupResponse>('/account/ebay/setup', body) });
 
 export function useAddSupplier() {
   const inv = useInvalidate();

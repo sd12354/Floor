@@ -280,3 +280,20 @@ export interface ApiError { error: { code: string; message: string; details?: un
 
 export * from './authTypes';
 export * from './manualTypes';
+
+/** v1.5: POST /account/ebay/setup. Returns ids to paste into apps/api/.env; Floor stores none of them. */
+export interface EbaySetupInput {
+  location: { addressLine1: string; city: string; stateOrProvince: string; postalCode: string; country: 'US' };
+  categoryQuery?: string;
+}
+export interface EbayCategorySuggestion { categoryId: string; name: string }
+export interface EbaySetupResponse {
+  fulfillmentPolicyId: string;
+  paymentPolicyId: string;
+  returnPolicyId: string;
+  merchantLocationKey: string;
+  categorySuggestions: EbayCategorySuggestion[];
+  envLines: string;
+  reused: { fulfillmentPolicy: boolean; paymentPolicy: boolean; returnPolicy: boolean; location: boolean };
+  notes: string[];
+}

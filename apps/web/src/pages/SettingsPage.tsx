@@ -7,6 +7,7 @@ import { errorMessage } from '@/api/client';
 import { Badge, Button, Card, ErrorState, Skeleton, TextField, useToast } from '@/components/ui';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { RulesForm } from '@/components/settings/RulesForm';
+import { EbaySetupCard } from '@/components/settings/EbaySetupCard';
 import { rulesFromAccount, toPatch, type RulesDraft } from '@/lib/rules';
 
 
@@ -59,6 +60,7 @@ export function SettingsPage() {
               </div>
             </div>
           </Card>
+          <EbaySetupCard connected={account.ebayConnected} />
         </div>
 
         <Card title="Suppliers">

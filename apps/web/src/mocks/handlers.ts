@@ -55,6 +55,21 @@ export const handlers = [
     state.account.ebayUsername = 'demo_seller';
     return HttpResponse.json(state.account);
   }),
+  http.post(`${B}/account/ebay/setup`, async ({ request }) => {
+    await latency();
+    const body = (await request.json()) as { location?: { country?: string; city?: string }; categoryQuery?: string };
+    if (!body.location?.city || body.location.country !== 'US') return err(400, 'VALIDATION', 'Invalid request');
+    if (!state.account.ebayConnected) return err(409, 'EBAY_NOT_CONNECTED', 'Connect your eBay account first (Settings > Connect eBay), then run setup.');
+    const q = body.categoryQuery?.trim();
+    const categorySuggestions = q ? [{ categoryId: '11700', name: `Home & Garden > ${q} (demo)` }, { categoryId: '26395', name: 'Health & Beauty > Other (demo)' }] : [];
+    const lines = ['EBAY_FULFILLMENT_POLICY_ID=6000000001', 'EBAY_PAYMENT_POLICY_ID=6000000002', 'EBAY_RETURN_POLICY_ID=6000000003', 'EBAY_MERCHANT_LOCATION_KEY=floor-default'];
+    const first = categorySuggestions[0];
+    lines.push(first ? `EBAY_DEFAULT_CATEGORY_ID=${first.categoryId}` : '# EBAY_DEFAULT_CATEGORY_ID=<pick a category id>');
+    return HttpResponse.json({
+      fulfillmentPolicyId: '6000000001', paymentPolicyId: '6000000002', returnPolicyId: '6000000003', merchantLocationKey: 'floor-default', categorySuggestions, envLines: lines.join('\n'),
+      reused: { fulfillmentPolicy: false, paymentPolicy: false, returnPolicy: false, location: false }, notes: ['Demo values: mock mode does not talk to eBay. Nothing was created.'],
+    });
+  }),
   http.post(`${B}/suppliers`, async ({ request }) => {
     await latency();
     const { supplier } = (await request.json()) as { supplier: SupplierKind };
