@@ -66,7 +66,8 @@ interface ComplianceResult { ok: true } | { ok: false; code: 'SUPPLIER_NOT_ALLOW
 ### Account & setup
 - `GET  /account` → Account (+ `supplierConnections[]`)
 - `PATCH /account` body: partial `{ name, pricingRule, fees, dailySpendCapCents, smallLossToleranceCents, handlingTimeDays }`
-- `POST /account/ebay/connect` → in mock mode marks connected with `ebayUsername: "demo_seller"`; in real mode returns `{ authorizeUrl }`
+- `POST /account/ebay/connect` → in mock mode marks connected with `ebayUsername: "demo_seller"`; in real mode returns `{ authorizeUrl }` (the URL carries a random single-use `state`; `501 NOT_CONFIGURED` if `FLOOR_SECRET_KEY` is missing or not 32 bytes)
+- `GET  /account/ebay/callback?code=&state=` (public, real mode only; see v1.4)
 - `POST /suppliers` body `{ supplier, credentials?: {} }` → SupplierConnection (mock needs none)
 - `DELETE /suppliers/:id`
 
@@ -107,7 +108,7 @@ Floor is single-seller. Every `/api/v1` route needs `Authorization: Bearer <sess
 - Passwords are stored as scrypt hashes. The session token is 32 random bytes; only its SHA-256 is stored. Sessions last 30 days.
 - The API listens on `127.0.0.1` by default (`HOST` overrides) and CORS allows only `CORS_ORIGINS`, so a fresh install cannot be claimed from another machine or website before the owner signs up. A tunnel to `127.0.0.1:4000` is the way to reach it from a phone.
 - A user row has a unique `slot = 'owner'`, so two racing signups cannot both succeed.
-- `POST /webhooks/ebay` also requires a session token for now. Before real eBay notifications are enabled it needs its own signature check instead.
+- `POST /webhooks/ebay` requires EITHER a session token OR the shared secret header `X-Floor-Webhook-Secret` (v1.4).
 
 ## Manual supplier (v1.3)
 
@@ -161,6 +162,14 @@ FLOOR_MODE=mock|real
 DATABASE_URL=file:./dev.db
 PORT=4000
 EBAY_CLIENT_ID= EBAY_CLIENT_SECRET= EBAY_RU_NAME= EBAY_ENV=sandbox|production
+EBAY_USER_TOKEN=                  # optional static sandbox token; used only when no OAuth tokens are stored
+EBAY_FULFILLMENT_POLICY_ID= EBAY_PAYMENT_POLICY_ID= EBAY_RETURN_POLICY_ID=   # business policies (Account API / My eBay)
+EBAY_MERCHANT_LOCATION_KEY=       # inventory location (createInventoryLocation)
+EBAY_DEFAULT_CATEGORY_ID=         # leaf category id used for every listing
+FLOOR_SECRET_KEY=                 # 32 random bytes, base64 or 64 hex (openssl rand -base64 32); encrypts eBay tokens
+FLOOR_WEBHOOK_SECRET=             # optional; lets POST /webhooks/ebay be called with X-Floor-Webhook-Secret
+WEB_ORIGIN=http://localhost:5173  # where the OAuth callback sends the browser (defaults to the first CORS origin)
+EBAY_ORDER_POLL_MS=60000          # real mode: how often new eBay orders are imported
 CJ_API_KEY= SPOCKET_API_KEY=
 MOCK_TRACKING_DELAY_MS=30000
 ```
@@ -207,3 +216,42 @@ SCHEDULER_TICK_MS=10000        # queue drain / hold expiry / tracking poll inter
 SCHEDULER_DISABLED=1           # disable in-process jobs (always disabled under NODE_ENV=test)
 CORS_ORIGINS=http://localhost:5173
 ```
+
+## Real eBay adapter (v1.4)
+
+`RealEbay` (`packages/core/src/connectors/real/`) talks to the eBay Sell APIs. `EBAY_ENV=sandbox` (default) uses `*.sandbox.ebay.com`, `production` uses `*.ebay.com`; `FLOOR_MODE=mock` is unchanged and never touches any of this. All network access goes through an injected `fetch` (tests use a fake).
+
+**OAuth.** `POST /account/ebay/connect` creates a random 32-byte `state` (stored only as a SHA-256, valid 10 minutes, single use, bound to the account) and returns eBay's consent URL (scopes: base, `sell.inventory`, `sell.fulfillment`, `sell.finances`, `sell.account`, `commerce.identity.readonly`). eBay redirects the browser to the RuName's accepted URL, which must be `<api origin>/api/v1/account/ebay/callback`.
+- `GET /account/ebay/callback?code=&state=` is the only unauthenticated route besides auth. The `state` is the only thing it trusts: unknown, malformed, expired or replayed state is `400 INVALID_STATE` and nothing is stored or requested. With a valid state it exchanges the code (`grant_type=authorization_code`, `redirect_uri` = RuName, HTTP Basic `clientId:clientSecret`, form-encoded), stores the tokens, sets `ebayConnected` and `ebayUsername` (Identity API, best effort), and redirects (302) to `<WEB_ORIGIN>/settings?ebay=connected`. A denied consent (`error=`) or failed exchange redirects with `ebay=denied` / `ebay=failed`; the state is consumed either way.
+- Tokens live in `EbayCredential`, AES-256-GCM encrypted (`v1:<base64 iv|tag|ciphertext>`) with `FLOOR_SECRET_KEY`. The key must decode to exactly 32 bytes. If it is unset, connecting returns `501 NOT_CONFIGURED` and nothing is ever stored. Rotating the key requires reconnecting eBay.
+- Access tokens (2 h) are refreshed automatically with the refresh token (`grant_type=refresh_token`, scopes omitted so the original consent applies) a minute before expiry and once after any 401, then the request is retried once. A refresh that eBay refuses, or an expired refresh token (about 18 months), raises `EbayReauthRequiredError`: the seller must reconnect. `EBAY_USER_TOKEN` is a fallback used only when no tokens are stored; it cannot be refreshed.
+- Floor is single-seller: the token store serves the one credential row.
+
+**Listing calls** (`sku` = the product's `supplierSku`; `ebayItemId` = the `listingId` returned by publish):
+| Floor call | eBay |
+|---|---|
+| `createListing` | `PUT /sell/inventory/v1/inventory_item/{sku}` (`Content-Language: en-US`) -> `GET /offer?sku=` (reuse an existing offer, so a retry after a failed publish never duplicates) -> `POST /offer` -> `POST /offer/{offerId}/publish` -> `listingId` |
+| `updateListing` | price and quantity: `POST /bulk_update_price_quantity`; title/description/images: `GET` then `PUT /inventory_item/{sku}`, and for a description also `GET` + `PUT /offer/{offerId}` |
+| `setQuantity` | `POST /bulk_update_price_quantity` (0 keeps the listing live but out of stock) |
+| `endListing` | `POST /offer/{offerId}/withdraw` |
+| `createShippingFulfillment` | `GET /sell/fulfillment/v1/order/{orderId}` (for `lineItemId`s; a `FULFILLED` order is skipped so retries are safe) -> `POST .../shipping_fulfillment { lineItems, shippedDate, shippingCarrierCode, trackingNumber }` |
+| `getPayoutSchedule` | `GET https://apiz.ebay.com/sell/finances/v1/seller_funds_summary`. Heuristic: funds on hold -> `{30, true}`, else `{3, false}` (eBay publishes no payout-delay field) |
+| `listNewOrders(since)` | `GET /sell/fulfillment/v1/order?filter=creationdate:[since..],orderfulfillmentstatus:{NOT_STARTED\|IN_PROGRESS}&limit=200` (paged) |
+
+`getOfferBySku(sku)` returns `{ offerId, sku, status, listingId? }` from `GET /offer?sku=` for the sku <-> offerId mapping. Because eBay's offer API is keyed by sku and Floor stores only the listing id, the connector resolves listing id -> sku through the database (`Listing -> Product.supplierSku`).
+
+Required configuration for `createListing`: `EBAY_FULFILLMENT_POLICY_ID`, `EBAY_PAYMENT_POLICY_ID`, `EBAY_RETURN_POLICY_ID`, `EBAY_MERCHANT_LOCATION_KEY`, `EBAY_DEFAULT_CATEGORY_ID`. Any that are missing are listed together in one `NOT_CONFIGURED` error (501) before any request is made. The seller must already be opted in to business policies and have created an inventory location.
+
+**Things the adapter does NOT control.** Buyer shipping cost and handling time come from the fulfillment policy, not from Floor's `buyerShippingCents` / `handlingTimeDays`. Floor's margin math assumes the policy matches the account (free shipping, handling time <= `handlingTimeDays`); a mismatched policy silently changes real margin. Every listing uses the one default category.
+
+**`sendBuyerMessage` is a documented no-op.** It logs and returns without throwing, so a failed notification never blocks the pipeline. Buyers get no automated messages in real mode; messages stay visible in Floor's own Messages screen. (Candidates for later: Trading API `AddMemberMessageAAQToPartner`, or the Commerce Message API `POST /commerce/message/v1/send_message`; neither could be verified as available to this app.)
+
+**Order import.** In real mode the scheduler polls every `EBAY_ORDER_POLL_MS` (default 60 s), per account that has a credential. The cursor is `EbayCredential.ordersSyncedAt` (set to the connect time on first connect, so history is never imported), the window overlaps by 10 minutes, and the cursor only advances when the poll had no pipeline failures. Each order is mapped to the `POST /webhooks/ebay` body and goes through the same `intakeOrder` + `processOrder`, so it is idempotent on `ebayOrderId` (one supplier order per eBay order, duplicates are no-ops) and passes the compliance gate and margin engine like every other order. Mapping rules: `ebayOrderId` = REST `orderId`; item = `lineItems[0].legacyItemId` (matched to `Listing.ebayItemId`); sale price = `priceSubtotal` and buyer shipping = `deliveryCost`, each reduced by the absolute value of its discount line (never increased); amounts are parsed from decimal strings to integer cents without floats (more than two decimals round half up); only `PAID`, non-cancelled USD orders; **orders with more than one line item or quantity > 1 are skipped**, not guessed (recorded once as an `ebay.order_skipped` event with the reason). Orders for an item Floor has no listing for are ignored.
+
+**Webhook.** `POST /webhooks/ebay` accepts a session bearer token OR `X-Floor-Webhook-Secret` equal to `FLOOR_WEBHOOK_SECRET` (constant-time compare; if no secret is configured the header never authenticates). Mock mode and existing session callers are unchanged.
+
+**Known gaps.**
+- TODO: `X-EBAY-SIGNATURE` verification is not implemented. The scheme itself is documented (base64 JSON header with `kid`/`alg`/`digest`/`signature`; public key from `GET /commerce/notification/v1/public_key/{kid}`; ECDSA over the raw body, SHA-1), but it signs eBay Notification API payloads (`metadata`/`notification` envelope), which is not this route's normalised body, and no sale/order topic was verified. Real order intake uses the poller above. Revisit if an order topic is adopted.
+- Buyer messaging (above), multi-line and multi-quantity orders (above), and a Finances API sandbox host (`apiz.sandbox.ebay.com` is assumed by analogy; Finances may not be available in the sandbox).
+- Carrier codes are passed to eBay as the supplier reports them; eBay expects its own `ShippingCarrierCodeType` values, so an unknown carrier may be rejected and the tracking push retried.
+- eBay account-deletion notifications (a marketplace requirement for production keysets) are not handled.
