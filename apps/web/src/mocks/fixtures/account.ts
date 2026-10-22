@@ -42,6 +42,9 @@ export const demoAccount: Account = {
   smallLossToleranceCents: 500,
   handlingTimeDays: 3,
   newSeller: false,
+  promotedAdsEnabled: false,
+  promotedAdRatePct: 0.02,
+  promotedAdsPending: 0,
   createdAt: '2026-10-01T09:00:00Z',
   supplierConnections: [mockSupplier, manualSupplier],
 };

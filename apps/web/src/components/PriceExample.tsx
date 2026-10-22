@@ -8,10 +8,12 @@ interface Props {
   /** Example supplier cost, default $12.00 */
   costCents?: number;
   shippingCents?: number;
+  /** Set when promoted ads are on: the example says the ad rate is part of the fees. */
+  adRatePct?: number;
 }
 
 /** "A $40 item with $12 cost prices at $__ and nets __%" — the sentence the seller tunes settings against. */
-export function PriceExample({ fees, rule, costCents = 1200, shippingCents = 0 }: Props) {
+export function PriceExample({ fees, rule, costCents = 1200, shippingCents = 0, adRatePct }: Props) {
   const price = priceForTarget(costCents, shippingCents, fees, rule);
   const m = computeMargin({ salePriceCents: price, buyerShippingCents: 0, supplierCostCents: costCents, supplierShippingCents: shippingCents, toolFeeCents: 0, fees });
   const fortyAtCost = computeMargin({ salePriceCents: 4000, buyerShippingCents: 0, supplierCostCents: costCents, supplierShippingCents: shippingCents, toolFeeCents: 0, fees });
@@ -25,7 +27,7 @@ export function PriceExample({ fees, rule, costCents = 1200, shippingCents = 0 }
         <strong className="num">{formatCents(price)}</strong> and nets{' '}
         <strong className={cn('num', marginColorClass[state])}>{formatCents(m.netProfitCents)}</strong>{' '}
         <span className={cn('num', marginColorClass[state])}>({formatPct(m.netMarginPct)}, {marginLabel[state].toLowerCase()})</span>{' '}
-        after <span className="num">{formatCents(m.ebayFeesCents)}</span> in eBay fees.
+        after <span className="num">{formatCents(m.ebayFeesCents)}</span> in eBay fees{adRatePct !== undefined && <>, including the <span className="num">{formatPct(adRatePct)}</span> promoted ad rate</>}.
       </p>
       <p className="text-muted mt-1.5 text-[13px]">
         Sold at a flat $40.00 it would net <span className="num">{formatCents(fortyAtCost.netProfitCents)}</span> ({formatPct(fortyAtCost.netMarginPct)}).

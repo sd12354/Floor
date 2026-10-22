@@ -73,12 +73,18 @@ export interface Account {
   handlingTimeDays: number;
   /** v1.1: new-seller accounts have a +30 day payout hold. */
   newSeller: boolean;
+  /** v1.6: promoted ads switch (default off). */
+  promotedAdsEnabled: boolean;
+  /** v1.6: the eBay ad rate as a decimal (0.02 = 2%). While the switch is on it is also the fee table's promoted rate. */
+  promotedAdRatePct: Pct;
+  /** v1.6: live listings whose ad is not yet as the settings say (waiting for a retry, e.g. eBay needs reconnecting). */
+  promotedAdsPending: number;
   createdAt: string;
   supplierConnections: SupplierConnection[];
 }
 
 export type AccountPatch = Partial<
-  Pick<Account, 'name' | 'dailySpendCapCents' | 'smallLossToleranceCents' | 'handlingTimeDays' | 'newSeller'> & {
+  Pick<Account, 'name' | 'dailySpendCapCents' | 'smallLossToleranceCents' | 'handlingTimeDays' | 'newSeller' | 'promotedAdsEnabled' | 'promotedAdRatePct'> & {
     pricingRule: Partial<PricingRule>;
     fees: Partial<FeeConfig>;
   }
@@ -122,6 +128,9 @@ export interface Listing {
   status: ListingStatus;
   pauseReason?: string;
   projectedMarginPct: Pct;
+  /** v1.6: the listing currently carries an eBay promoted ad. */
+  promoted?: boolean;
+  promotedRatePct?: Pct;
   /** null until the first sync/publish. */
   lastSyncAt: string | null;
   createdAt: string;

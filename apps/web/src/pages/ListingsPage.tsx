@@ -70,7 +70,10 @@ export function ListingsPage() {
         <span className="flex items-center gap-3 min-w-0">
           {l.product?.images[0] ? <Thumb src={l.product.images[0]} className="h-9 w-9 hidden sm:block" /> : null}
           <span className="min-w-0">
-            <span className="block truncate max-w-[52vw] md:max-w-[34ch]">{l.title}</span>
+            <span className="flex items-center gap-1.5 max-w-[52vw] md:max-w-[34ch]">
+              <span className="truncate">{l.title}</span>
+              {l.promoted && <Badge tone="accent" title={l.promotedRatePct !== undefined ? `Promoted on eBay at ${(l.promotedRatePct * 100).toFixed(1)}%` : 'Promoted on eBay'}>Promoted</Badge>}
+            </span>
             <span className="block text-[12px] text-muted truncate max-w-[52vw] md:max-w-[40ch]">
               {l.pauseReason ? <span className={l.status === 'blocked' ? 'text-floor' : 'text-amber'}>{l.status === 'blocked' ? 'Blocked: ' : 'Paused: '}{pauseReasonLabel(l.pauseReason, l)}</span> : l.ebayItemId ? `eBay ${l.ebayItemId}` : 'Not yet on eBay'}
             </span>

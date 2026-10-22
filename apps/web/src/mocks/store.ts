@@ -2,7 +2,7 @@ import type {
   Account, ComplianceResult, DashboardResponse, DiscoveryItem, Event, LadderDecision, LedgerEntry, Listing, Message, Order,
   Product, SupplierConnection, SupplierKind,
 } from '@/api/types';
-import { computeMargin, priceForTarget } from '@/lib/money';
+import { accountFees, computeMargin, priceForTarget } from '@/lib/money';
 import { demoAccount, freshAccount } from './fixtures/account';
 import { blockedBrands, manualProducts as seedManualProducts, products } from './fixtures/products';
 import { listings as seedListings } from './fixtures/listings';
@@ -34,7 +34,7 @@ export function makeState(opts: { fresh?: boolean } = {}): MockState {
   const manualProducts = clone(seedManualProducts);
   for (const l of listings) {
     const p = [...products, ...manualProducts].find((x) => x.id === l.productId);
-    if (p) l.floorPriceCents = priceForTarget(p.costCents, p.shippingCents, account.fees, { ...account.pricingRule, targetPct: account.pricingRule.floorPct });
+    if (p) l.floorPriceCents = priceForTarget(p.costCents, p.shippingCents, accountFees(account), { ...account.pricingRule, targetPct: account.pricingRule.floorPct });
   }
   return { account, listings, manualProducts, orders: clone(seedOrders), events: clone(seedEvents), messages: clone(seedMessages), ledger: clone(seedLedger), auth: { hasUsers: true, email: 'seller@floor.test', password: 'floor-demo-pass' } };
 }
@@ -64,7 +64,8 @@ export function compliance(p: Product, handlingTimeDays: number): ComplianceResu
 }
 
 export function toDiscoveryItem(p: Product): DiscoveryItem {
-  const { fees, pricingRule, handlingTimeDays } = state.account;
+  const { pricingRule, handlingTimeDays } = state.account;
+  const fees = accountFees(state.account);
   const projectedPriceCents = priceForTarget(p.costCents, p.shippingCents, fees, pricingRule);
   const m = computeMargin({ salePriceCents: projectedPriceCents, buyerShippingCents: 0, supplierCostCents: p.costCents, supplierShippingCents: p.shippingCents, toolFeeCents: 0, fees });
   return { ...p, projectedPriceCents, projectedMarginPct: m.netMarginPct, compliance: compliance(p, handlingTimeDays) };
@@ -75,14 +76,14 @@ export function marginForListing(l: Listing, costOverride?: number): number {
   if (!p) return l.projectedMarginPct;
   return computeMargin({
     salePriceCents: l.priceCents, buyerShippingCents: l.buyerShippingCents,
-    supplierCostCents: costOverride ?? p.costCents, supplierShippingCents: p.shippingCents, toolFeeCents: 0, fees: state.account.fees,
+    supplierCostCents: costOverride ?? p.costCents, supplierShippingCents: p.shippingCents, toolFeeCents: 0, fees: accountFees(state.account),
   }).netMarginPct;
 }
 
 export function floorPriceFor(l: Listing): number {
   const p = productById(l.productId);
   if (!p) return 0;
-  return priceForTarget(p.costCents, p.shippingCents, state.account.fees, { ...state.account.pricingRule, targetPct: state.account.pricingRule.floorPct });
+  return priceForTarget(p.costCents, p.shippingCents, accountFees(state.account), { ...state.account.pricingRule, targetPct: state.account.pricingRule.floorPct });
 }
 
 export function createListings(productIds: string[]) {
@@ -117,6 +118,7 @@ export function publish(ids: string[]) {
       l.ebayItemId ??= `mock-${Math.random().toString(36).slice(2, 7)}`;
       l.pauseReason = undefined;
       pushEvent('listing.published', { ebayItemId: l.ebayItemId }, { listingId: l.id });
+      if (state.account.promotedAdsEnabled) { l.promoted = true; l.promotedRatePct = state.account.promotedAdRatePct; }
       published.push(l);
     }
   }
@@ -141,7 +143,7 @@ export function sync() {
       } else if (l.status === 'paused' && l.pauseReason === 'below_floor') {
         l.status = 'active'; l.pauseReason = undefined; resumed++; pushEvent('listing.resumed', {}, { listingId: l.id });
       } else {
-        l.priceCents = priceForTarget(p.costCents, p.shippingCents, state.account.fees, state.account.pricingRule); repriced++;
+        l.priceCents = priceForTarget(p.costCents, p.shippingCents, accountFees(state.account), state.account.pricingRule); repriced++;
         pushEvent('listing.repriced', { priceCents: l.priceCents }, { listingId: l.id });
       }
       l.projectedMarginPct = marginForListing(l);
@@ -199,7 +201,7 @@ export function simulate(body: { listingId: string; buyerName?: string; priceDri
   const p = productById(l.productId);
   if (!p) throw Object.assign(new Error('Product not found'), { status: 404, code: 'NOT_FOUND' });
   const cost = Math.max(1, Math.round(p.costCents * (1 + (body.priceDriftPct ?? 0) / 100)));
-  const m = computeMargin({ salePriceCents: l.priceCents, buyerShippingCents: l.buyerShippingCents, supplierCostCents: cost, supplierShippingCents: p.shippingCents, toolFeeCents: 0, fees: state.account.fees });
+  const m = computeMargin({ salePriceCents: l.priceCents, buyerShippingCents: l.buyerShippingCents, supplierCostCents: cost, supplierShippingCents: p.shippingCents, toolFeeCents: 0, fees: accountFees(state.account) });
   const id = nextId('ord');
   const o: Order = {
     id, accountId: 'acc_demo', listingId: l.id, ebayOrderId: `eb-sim-${id.slice(4)}`, buyerName: body.buyerName || 'Simulated Buyer',
@@ -278,3 +280,28 @@ export function addSupplier(supplier: SupplierKind): SupplierConnection {
 }
 
 export { products };
+
+/**
+ * Mirror of the API's reaction to a promoted-ads change: reprice live listings to the new target, pause any whose price
+ * would have to move more than 25% (it cannot be repriced safely), and mark live listings promoted while the switch is on.
+ */
+export function applyPromotedAds(): void {
+  const { promotedAdsEnabled: on, promotedAdRatePct: rate } = state.account;
+  for (const l of state.listings) {
+    if (l.status !== 'active' && l.status !== 'paused') continue;
+    const p = productById(l.productId);
+    if (p && p.supplier !== 'manual') {
+      const target = priceForTarget(p.costCents, p.shippingCents, accountFees(state.account), state.account.pricingRule);
+      if (Math.abs(target - l.priceCents) <= Math.round(l.priceCents * 0.25)) {
+        if (target !== l.priceCents) { l.priceCents = target; pushEvent('listing.repriced', { priceCents: target }, { listingId: l.id }); }
+      }
+      l.floorPriceCents = floorPriceFor(l);
+      if (l.status === 'active' && l.priceCents < l.floorPriceCents) { l.status = 'paused'; l.pauseReason = 'below_floor'; pushEvent('listing.paused', { reason: 'below_floor' }, { listingId: l.id }); }
+      else if (l.status === 'paused' && l.pauseReason === 'below_floor' && l.priceCents >= l.floorPriceCents) { l.status = 'active'; l.pauseReason = undefined; pushEvent('listing.resumed', {}, { listingId: l.id }); }
+      l.projectedMarginPct = marginForListing(l);
+    }
+    const promoted = on && l.status === 'active';
+    l.promoted = promoted;
+    if (promoted) l.promotedRatePct = rate; else delete l.promotedRatePct;
+  }
+}

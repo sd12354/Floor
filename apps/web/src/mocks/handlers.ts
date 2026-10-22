@@ -1,5 +1,6 @@
 import { http, HttpResponse, delay } from 'msw';
 import type { AccountPatch, LedgerEntry, SupplierKind } from '@/api/types';
+import { MAX_AD_RATE_PCT, MIN_AD_RATE_PCT } from '@/lib/money';
 import * as store from './store';
 import { nextId, state } from './store';
 import { manualHandlers } from './manualHandlers';
@@ -45,8 +46,11 @@ export const handlers = [
     const patch = (await request.json()) as AccountPatch;
     const pricingRule = { ...state.account.pricingRule, ...(patch.pricingRule ?? {}) };
     if (pricingRule.floorPct > pricingRule.targetPct) return err(400, 'BAD_REQUEST', 'targetPct must be >= floorPct');
+    if (patch.promotedAdRatePct !== undefined && (patch.promotedAdRatePct < MIN_AD_RATE_PCT || patch.promotedAdRatePct > MAX_AD_RATE_PCT)) return err(400, 'BAD_REQUEST', `Ad rate must be between ${MIN_AD_RATE_PCT * 100}% and ${MAX_AD_RATE_PCT * 100}%`);
+    const before = { on: state.account.promotedAdsEnabled, rate: state.account.promotedAdRatePct };
     Object.assign(state.account, patch, { pricingRule, fees: { ...state.account.fees, ...(patch.fees ?? {}) } });
     for (const l of state.listings) { l.projectedMarginPct = store.marginForListing(l); l.floorPriceCents = store.floorPriceFor(l); }
+    if (before.on !== state.account.promotedAdsEnabled || (state.account.promotedAdsEnabled && before.rate !== state.account.promotedAdRatePct)) store.applyPromotedAds();
     return HttpResponse.json(state.account);
   }),
   http.post(`${B}/account/ebay/connect`, async () => {

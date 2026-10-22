@@ -7,7 +7,7 @@ import { errorMessage } from '@/api/client';
 import { Badge, Button, Skeleton, useToast } from '@/components/ui';
 import { Wordmark } from '@/components/layout/Wordmark';
 import { RulesForm } from '@/components/settings/RulesForm';
-import { toPatch, type RulesDraft } from '@/lib/rules';
+import { rulesFromAccount, toPatch, type RulesDraft } from '@/lib/rules';
 import { cn } from '@/lib/cn';
 
 const suppliers: { kind: SupplierKind; name: string; blurb: string; ready: boolean }[] = [
@@ -43,7 +43,7 @@ export function OnboardingPage() {
   const [rulesSaved, setRulesSaved] = useState(false);
 
   useEffect(() => {
-    if (account && !draft) setDraft({ pricingRule: account.pricingRule, fees: account.fees, dailySpendCapCents: account.dailySpendCapCents, smallLossToleranceCents: account.smallLossToleranceCents, handlingTimeDays: account.handlingTimeDays });
+    if (account && !draft) setDraft(rulesFromAccount(account));
   }, [account, draft]);
 
   const ebayDone = account?.ebayConnected ?? false;

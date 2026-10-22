@@ -64,6 +64,15 @@ export const marginBgClass: Record<MarginState, string> = {
 /** Round half up to integer cents (matches @floor/core roundHalfUp; Math.round differs on negatives). */
 const roundHalfUp = (v: number) => (v < 0 ? -1 : 1) * Math.floor(Math.abs(v) + 0.5);
 
+/** Ad rate bounds (eBay Promoted Listings Standard); mirrors @floor/core MIN/MAX_AD_RATE_PCT. */
+export const MIN_AD_RATE_PCT = 0.02;
+export const MAX_AD_RATE_PCT = 1;
+
+/** The fee table prices and margins use: with promoted ads on, the ad rate replaces promotedPct (same fee, never added twice). */
+export function accountFees(a: { fees: FeeConfig; promotedAdsEnabled?: boolean; promotedAdRatePct?: Pct }): FeeConfig {
+  return a.promotedAdsEnabled ? { ...a.fees, promotedPct: a.promotedAdRatePct ?? a.fees.promotedPct } : a.fees;
+}
+
 /** Effective variable fee rate: (FVF - store) x (1 - top rated) + below standard + promoted, as in @floor/core. */
 export function effectiveVariablePct(f: FeeConfig): Pct {
   return Math.max(0, f.finalValueFeePct - f.storeDiscountPct) * (1 - f.topRatedDiscountPct) + f.belowStandardSurchargePct + f.promotedPct;

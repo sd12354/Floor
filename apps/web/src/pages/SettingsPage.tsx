@@ -8,7 +8,7 @@ import { Badge, Button, Card, ErrorState, Skeleton, TextField, useToast } from '
 import { PageHeader } from '@/components/layout/PageHeader';
 import { RulesForm } from '@/components/settings/RulesForm';
 import { EbaySetupCard } from '@/components/settings/EbaySetupCard';
-import { rulesFromAccount, toPatch, type RulesDraft } from '@/lib/rules';
+import { adRateError, rulesFromAccount, toPatch, type RulesDraft } from '@/lib/rules';
 
 
 const supplierNames: Record<SupplierKind, string> = { mock: 'Mock supplier', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', manual: 'Manual supplier' };
@@ -29,11 +29,11 @@ export function SettingsPage() {
   if (isPending || !account || !draft) return <div className="flex flex-col gap-3"><Skeleton className="h-8 w-40" /><Skeleton className="h-96" /></div>;
 
   const dirty = JSON.stringify({ ...draft, name }) !== JSON.stringify({ ...rulesFromAccount(account), name: account.name });
-  const invalid = draft.pricingRule.floorPct > draft.pricingRule.targetPct;
+  const invalid = draft.pricingRule.floorPct > draft.pricingRule.targetPct || adRateError(draft) !== null;
 
   const save = () =>
     patch.mutate({ ...toPatch(draft), name: name.trim() || account.name }, {
-      onSuccess: () => toast.success('Settings saved', 'Listings will be re-priced on the next sync.'),
+      onSuccess: () => toast.success('Settings saved', draft.promotedAdsEnabled !== account.promotedAdsEnabled || (draft.promotedAdsEnabled && draft.promotedAdRatePct !== account.promotedAdRatePct) ? 'Live listings were re-priced for the ad rate.' : 'Listings will be re-priced on the next sync.'),
       onError: (e) => toast.error('Could not save', errorMessage(e)),
     });
 
@@ -47,7 +47,7 @@ export function SettingsPage() {
       <div className="grid lg:grid-cols-[1fr_320px] gap-3 items-start">
         <div className="flex flex-col gap-3">
           <Card title="Pricing and risk">
-            <RulesForm draft={draft} onChange={setDraft} />
+            <RulesForm draft={draft} onChange={setDraft} adsPending={account.promotedAdsPending} />
           </Card>
           <Card title="Account">
             <div className="grid sm:grid-cols-2 gap-4">

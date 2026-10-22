@@ -1,6 +1,6 @@
 // Mock behaviour for the manual supplier (CONTRACT.md → Manual supplier v1.3): same fields, status transitions and error codes as the API.
 import type { ManualProductInput, Order, Product, SupplierQuote } from '@/api/types';
-import { computeMargin, priceForTarget } from '@/lib/money';
+import { accountFees, computeMargin, priceForTarget } from '@/lib/money';
 import { addLedger, nextId, productById, pushEvent, state, marginForListing, compliance } from './store';
 
 export class ApiErr extends Error {
@@ -74,7 +74,8 @@ export function patchManual(id: string, b: Record<string, unknown>): Product {
 
 /** The listing sweep scoped to one product: reprice or pause on a cost move, pause on stock 0, block if the lead time no longer fits. */
 function sweepProduct(p: Product, costMoved: boolean) {
-  const { fees, pricingRule, handlingTimeDays } = state.account;
+  const { pricingRule, handlingTimeDays } = state.account;
+  const fees = accountFees(state.account);
   for (const l of state.listings.filter((x) => x.productId === p.id && (x.status === 'active' || x.status === 'paused'))) {
     const gate = compliance(p, handlingTimeDays);
     if (!gate.ok) { l.status = 'blocked'; l.pauseReason = gate.code; pushEvent('listing.blocked', { code: gate.code }, { listingId: l.id }); continue; }
@@ -116,7 +117,8 @@ export const isManualOrder = (o: Order) => productOf(o)?.supplier === 'manual';
 
 /** Largest combined supplier cost + shipping that still meets the floor. Margin only falls as cost rises, so binary search is exact. */
 function maxSupplierCost(o: Order): number {
-  const { fees, pricingRule } = state.account;
+  const { pricingRule } = state.account;
+  const fees = accountFees(state.account);
   const ok = (c: number) => computeMargin({ salePriceCents: o.salePriceCents, buyerShippingCents: o.buyerShippingCents, supplierCostCents: c, supplierShippingCents: 0, toolFeeCents: 0, fees }).netMarginPct >= pricingRule.floorPct;
   if (!ok(0)) return 0;
   let lo = 0, hi = o.salePriceCents + o.buyerShippingCents;
@@ -139,7 +141,7 @@ function amounts(b: Record<string, unknown>, minCost: number) {
 }
 
 const marginFor = (o: Order, costCents: number, shippingCents: number) =>
-  computeMargin({ salePriceCents: o.salePriceCents, buyerShippingCents: o.buyerShippingCents, supplierCostCents: costCents, supplierShippingCents: shippingCents, toolFeeCents: 0, fees: state.account.fees });
+  computeMargin({ salePriceCents: o.salePriceCents, buyerShippingCents: o.buyerShippingCents, supplierCostCents: costCents, supplierShippingCents: shippingCents, toolFeeCents: 0, fees: accountFees(state.account) });
 
 export function quote(id: string, b: Record<string, unknown>): SupplierQuote {
   const o = orderOrThrow(id);
