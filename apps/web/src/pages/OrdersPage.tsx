@@ -11,7 +11,7 @@ import { orderStatusTone as statusTone } from '@/lib/tones';
 
 type Tab = 'all' | 'open' | OrderStatus;
 const tabs: { key: Tab; label: string }[] = [
-  { key: 'all', label: 'All' }, { key: 'held', label: 'Held' }, { key: 'queued', label: 'Queued' }, { key: 'ordered', label: 'Ordered' }, { key: 'shipped', label: 'Shipped' }, { key: 'delivered', label: 'Delivered' }, { key: 'cancelled', label: 'Cancelled' },
+  { key: 'all', label: 'All' }, { key: 'awaiting_supplier', label: 'To order' }, { key: 'held', label: 'Held' }, { key: 'queued', label: 'Queued' }, { key: 'ordered', label: 'Ordered' }, { key: 'shipped', label: 'Shipped' }, { key: 'delivered', label: 'Delivered' }, { key: 'cancelled', label: 'Cancelled' },
 ];
 
 
@@ -42,6 +42,8 @@ export function OrdersPage() {
       <Button size="sm" variant="primary" onClick={() => onDecide(o, 'fulfil')} loading={decide.isPending && decide.variables?.id === o.id && decide.variables.action === 'fulfil'}>Fulfil anyway</Button>
       <Button size="sm" variant="danger" onClick={() => onDecide(o, 'cancel')} loading={decide.isPending && decide.variables?.id === o.id && decide.variables.action === 'cancel'}>Cancel</Button>
     </span>
+) : o.status === 'awaiting_supplier' ? (
+    <Link to={`/orders/${o.id}`} className="inline-flex items-center h-7 px-2.5 rounded bg-accent text-accent-ink text-[13px] font-medium" onClick={(e) => e.stopPropagation()}>Order now</Link>
   ) : <Link to={`/orders/${o.id}`} className="text-[13px] text-accent hidden md:inline" onClick={(e) => e.stopPropagation()}>Details</Link>;
 
   const columns: Column<OrderRow>[] = [
@@ -52,7 +54,8 @@ export function OrdersPage() {
           <span className="block truncate max-w-[56vw] md:max-w-[36ch]">{o.listing.title}</span>
           <span className="block text-[12px] text-muted">{o.buyerName} · {formatDate(o.createdAt, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
           {o.status === 'held' && <span className="block text-[12px] text-floor">Decide by {formatDate(o.holdDeadline, { month: 'short', day: 'numeric', hour: 'numeric' })}</span>}
-          {o.status === 'held' && <span className="block md:hidden mt-1.5"><RowActions o={o} /></span>}
+          {o.status === 'awaiting_supplier' && <span className="block text-[12px] text-amber">Waiting for you to order from your supplier</span>}
+          {(o.status === 'held' || o.status === 'awaiting_supplier') && <span className="block md:hidden mt-1.5"><RowActions o={o} /></span>}
         </span>
       ),
     },
@@ -77,8 +80,8 @@ export function OrdersPage() {
         </div>
         {error ? <ErrorState message={errorMessage(error)} onRetry={() => refetch()} /> : isPending ? <TableSkeleton rows={6} cols={6} /> : data.items.length === 0 ? (
           <EmptyState
-            title={tab === 'held' ? 'No orders are held' : tab === 'all' ? 'No orders yet' : `No ${tab} orders`}
-            description={tab === 'held' ? 'Floor holds an order when the supplier price rises enough to push its margin below your floor.' : tab === 'all' ? 'When a buyer pays on eBay the order appears here. In mock mode, use Simulate sale on an active listing.' : undefined}
+            title={tab === 'held' ? 'No orders are held' : tab === 'all' ? 'No orders yet' : tab === 'awaiting_supplier' ? 'Nothing to order' : `No ${tab} orders`}
+            description={tab === 'awaiting_supplier' ? 'When a buyer pays for a product from your Manual supplier and the margin clears your floor, the order waits here until you buy it from your supplier.' : tab === 'held' ? 'Floor holds an order when the supplier price rises enough to push its margin below your floor.' : tab === 'all' ? 'When a buyer pays on eBay the order appears here. In mock mode, use Simulate sale on an active listing.' : undefined}
             action={tab === 'all' ? <Link to="/listings?status=active" className="inline-flex items-center h-9 px-3.5 rounded bg-accent text-accent-ink text-[14px] font-medium">Go to listings</Link> : undefined}
           />
         ) : (

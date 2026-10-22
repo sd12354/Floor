@@ -9,4 +9,4 @@ export { useToast } from './toastContext';
 export { EmptyState, ErrorState } from './EmptyState';
 export { Skeleton, StatSkeleton, TableSkeleton } from './Skeleton';
 export { Tabs } from './Tabs';
-export { TextField, MoneyField, PctField, SelectField, Toggle } from './Field';
+export { TextField, TextAreaField, DollarField, MoneyField, PctField, SelectField, Toggle } from './Field';

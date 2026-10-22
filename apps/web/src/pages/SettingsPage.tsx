@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import type { SupplierKind } from '@/api/types';
 import { useAccount, useAddSupplier, usePatchAccount, useRemoveSupplier } from '@/api/hooks';
@@ -9,7 +10,7 @@ import { RulesForm } from '@/components/settings/RulesForm';
 import { rulesFromAccount, toPatch, type RulesDraft } from '@/lib/rules';
 
 
-const supplierNames: Record<SupplierKind, string> = { mock: 'Mock supplier', cjdropshipping: 'CJdropshipping', spocket: 'Spocket' };
+const supplierNames: Record<SupplierKind, string> = { mock: 'Mock supplier', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', manual: 'Manual supplier' };
 
 export function SettingsPage() {
   const { data: account, isPending, error, refetch } = useAccount();
@@ -81,9 +82,16 @@ export function SettingsPage() {
               <option value="mock">Mock supplier</option>
               <option value="cjdropshipping">CJdropshipping</option>
               <option value="spocket">Spocket</option>
+              <option value="manual">Manual supplier (Alibaba, CJ, any wholesaler)</option>
             </select>
             <Button onClick={() => addSupplier.mutate({ supplier: adding }, { onSuccess: (c) => toast.success(`${c.label} added`), onError: (e) => toast.error('Could not add supplier', errorMessage(e)) })} loading={addSupplier.isPending}>Add</Button>
           </div>
+          {account.supplierConnections.some((s) => s.supplier === 'manual') && (
+            <p className="text-[13px] mt-3">
+              <Link to="/products" className="text-accent underline underline-offset-2">Manage your products</Link>
+              <span className="text-muted"> for the manual supplier.</span>
+            </p>
+          )}
           <p className="text-[12px] text-muted mt-3 leading-snug">Only allow-listed wholesale suppliers can be connected. Retail sites like Amazon or Walmart are never supported; eBay bans drop-shipping from them.</p>
         </Card>
       </div>

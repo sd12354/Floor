@@ -20,6 +20,15 @@ export const mockSupplier: SupplierConnection = {
   createdAt: '2026-10-01T09:12:00Z',
 };
 
+export const manualSupplier: SupplierConnection = {
+  id: 'sup_manual_1',
+  accountId: 'acc_demo',
+  supplier: 'manual',
+  status: 'connected',
+  label: 'Manual supplier (Alibaba, CJ, any wholesaler)',
+  createdAt: '2026-10-02T09:12:00Z',
+};
+
 /** Fully set-up demo account. Tests and the "fresh" scenario override ebayConnected/supplierConnections. */
 export const demoAccount: Account = {
   id: 'acc_demo',
@@ -34,7 +43,7 @@ export const demoAccount: Account = {
   handlingTimeDays: 3,
   newSeller: false,
   createdAt: '2026-10-01T09:00:00Z',
-  supplierConnections: [mockSupplier],
+  supplierConnections: [mockSupplier, manualSupplier],
 };
 
 export const freshAccount: Account = {

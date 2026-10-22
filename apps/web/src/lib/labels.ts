@@ -5,6 +5,7 @@ export const orderStatusLabel: Record<OrderStatus, string> = {
   checking: 'Checking margin',
   held: 'Held',
   queued: 'Queued',
+  awaiting_supplier: 'To order',
   ordered: 'Ordered',
   shipped: 'Shipped',
   delivered: 'Delivered',
@@ -28,9 +29,18 @@ export const complianceLabel: Record<ComplianceCode, string> = {
   HANDLING_TIME_EXCEEDED: 'Ships too slowly',
 };
 
+/** What to do about a compliance refusal, where there is something the seller can change. */
+export function complianceAdvice(code: ComplianceCode, supplier?: string): string | undefined {
+  if (code !== 'HANDLING_TIME_EXCEEDED') return undefined;
+  return supplier === 'manual'
+    ? 'Shorten the lead time on Your products, or raise your handling time in Settings. Until then this product cannot be listed.'
+    : 'Raise your handling time in Settings, or pick a faster supplier. Until then this product cannot be listed.';
+}
+
 /** Human text for a listing's pauseReason (a pause code or, when blocked, a compliance code). */
 export function pauseReasonLabel(reason: string | undefined, l: { floorPriceCents?: number } = {}): string | undefined {
   if (!reason) return undefined;
+  if (reason === 'HANDLING_TIME_EXCEEDED') return 'Lead time is longer than your handling time';
   if (reason in complianceLabel) return complianceLabel[reason as ComplianceCode];
   switch (reason) {
     case 'below_floor':
@@ -64,10 +74,11 @@ export const messageKindLabel: Record<MessageKind, string> = {
 };
 
 /** Plain-words explanation of a ladder decision for the order detail page. */
-export function explainLadder(d: LadderDecision | undefined, ctx: { floorPct: string }): string {
+export function explainLadder(d: LadderDecision | undefined, ctx: { floorPct: string; manual?: boolean }): string {
   if (!d) return 'The margin check has not run yet.';
   switch (d.action) {
     case 'fulfil':
+      if (ctx.manual) return `The margin at the moment of sale still cleared your ${ctx.floorPct} floor, so Floor moved the order to To order. Your supplier has no API, so you place the supplier order by hand.`;
       return d.reason === 'within_tolerance'
         ? `The supplier price at the moment of sale still cleared your ${ctx.floorPct} margin floor, so Floor ordered from the supplier right away.`
         : 'This order was fulfilled as a small loss under an earlier rule that no longer applies. Floor now holds anything below your margin floor.';
@@ -86,6 +97,9 @@ export const eventTypeLabel = (type: string): string =>
     'order.checking': 'Re-checked supplier price and margin',
     'order.held': 'Held below floor',
     'order.queued': 'Queued: daily spend cap reached',
+    'order.awaiting_supplier': 'Waiting for you to order from your supplier',
+    'order.supplier_ordered': 'You ordered from your supplier',
+    'order.delivered_manual': 'You marked it delivered',
     'order.ordered': 'Ordered from supplier',
     'order.shipped': 'Tracking pushed to eBay',
     'order.delivered': 'Delivered',

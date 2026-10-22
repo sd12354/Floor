@@ -16,6 +16,8 @@ export const listings: Listing[] = [
   // Paused because the supplier price moved and the margin fell below the floor
   { ...base, id: 'lst_09', productId: 'prod_mk_2002', ebayItemId: 'mock-30f6c', title: 'Bamboo Monitor Stand Riser with Storage Drawer, Desk Organiser', priceCents: 2699, status: 'paused', pauseReason: 'below_floor', projectedMarginPct: 0.021, lastSyncAt: synced },
   { ...base, id: 'lst_10', productId: 'prod_mk_4003', ebayItemId: 'mock-b19e4', title: 'Aluminium Camp Stool, Folding, Supports 150kg, Carry Bag', priceCents: 2799, status: 'paused', pauseReason: 'out_of_stock', projectedMarginPct: 0.233, lastSyncAt: synced },
+  // Manual-supplier product: the order for it waits for the seller to buy it by hand
+  { ...base, id: 'lst_14', productId: 'prod_man_01', ebayItemId: 'mock-6d0b8', title: 'Bamboo Cutlery Travel Set with Case, Reusable Fork Knife Spoon Chopsticks', priceCents: 2499, status: 'active', projectedMarginPct: 0.228, lastSyncAt: synced },
   // Blocked by the compliance gate (VeRO)
   { ...base, id: 'lst_11', productId: 'prod_mk_7001', title: 'Yeti Rambler 20oz Tumbler Stainless Steel', priceCents: 3299, status: 'blocked', pauseReason: 'VERO_MATCH', projectedMarginPct: 0.18, lastSyncAt: synced },
   // Drafts awaiting publish

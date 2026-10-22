@@ -31,6 +31,8 @@ export const orders: Order[] = [
   mk({ id: 'ord_1047', listingId: 'lst_06', buyerName: 'Lena Fischer', salePriceCents: 999, status: 'held', supplierCostCents: 940, supplierShippingCents: 120, ladderDecision: { action: 'hold', reason: 'below_floor', deadline: '2026-10-22T19:55:00Z' }, holdDeadline: '2026-10-22T19:55:00Z', netProfitCents: -237, createdAt: '2026-10-20T07:55:00Z', updatedAt: '2026-10-20T07:56:00Z' }),
   // Queued: daily cap reached
   mk({ id: 'ord_1048', listingId: 'lst_03', buyerName: 'Sam Whitfield', salePriceCents: 2299, status: 'queued', supplierCostCents: 1460, supplierShippingCents: 0, ladderDecision: { action: 'fulfil', reason: 'within_tolerance' }, netProfitCents: 486, createdAt: '2026-10-20T09:02:00Z', updatedAt: '2026-10-20T09:02:00Z' }),
+  // To order: manual supplier, waiting for the seller to buy it. Nothing is in the ledger yet.
+  mk({ id: 'ord_1049', listingId: 'lst_14', buyerName: 'Elena Rossi', salePriceCents: 2499, status: 'awaiting_supplier', shipTo: { name: 'Elena Rossi', line1: '88 Harbor View Drive', line2: 'Apt 4B', city: 'Portland', state: 'OR', postalCode: '97204', country: 'US' }, ladderDecision: { action: 'fulfil', reason: 'within_tolerance' }, createdAt: '2026-10-20T10:15:00Z', updatedAt: '2026-10-20T10:15:05Z' }),
   // Paid out
   mk({ id: 'ord_1039', listingId: 'lst_03', buyerName: 'Jordan Ellis', salePriceCents: 2299, status: 'delivered', supplierOrderId: 'MS-88102', supplierCostCents: 1460, supplierShippingCents: 0, trackingNumber: '9400111899223450011', carrier: 'USPS', ladderDecision: { action: 'fulfil', reason: 'within_tolerance' }, payoutExpectedAt: '2026-10-16T00:00:00Z', paidOutAt: '2026-10-16T05:00:00Z', netProfitCents: 486, createdAt: '2026-10-09T13:10:00Z', updatedAt: '2026-10-16T05:00:00Z' }),
   mk({ id: 'ord_1040', listingId: 'lst_01', buyerName: 'Ava Nguyen', salePriceCents: 1899, status: 'delivered', supplierOrderId: 'MS-88150', supplierCostCents: 1180, supplierShippingCents: 0, trackingNumber: '9400111899223450098', carrier: 'USPS', ladderDecision: { action: 'fulfil', reason: 'within_tolerance' }, payoutExpectedAt: '2026-10-18T00:00:00Z', paidOutAt: '2026-10-18T05:00:00Z', netProfitCents: 421, createdAt: '2026-10-11T20:45:00Z', updatedAt: '2026-10-18T05:00:00Z' }),
@@ -63,6 +65,9 @@ export const events: Event[] = [
   ev('evt_18', 'ord_1041', 'order.delivered', '2026-10-18T19:00:00Z', {}),
   { id: 'evt_19', accountId: 'acc_demo', listingId: 'lst_09', type: 'listing.paused', payload: { reason: 'below_floor' }, at: '2026-10-20T06:00:00Z' },
   { id: 'evt_20', accountId: 'acc_demo', type: 'sync.completed', payload: { repriced: 3, paused: 1, resumed: 0 }, at: '2026-10-20T06:00:00Z' },
+  ev('evt_22', 'ord_1049', 'order.paid', '2026-10-20T10:15:00Z', { salePriceCents: 2499 }),
+  ev('evt_23', 'ord_1049', 'order.checking', '2026-10-20T10:15:03Z', { supplierCostCents: 1240, netMarginPct: 0.228 }),
+  ev('evt_24', 'ord_1049', 'order.awaiting_supplier', '2026-10-20T10:15:05Z', {}),
   ev('evt_21', 'ord_1040', 'order.payout', '2026-10-18T05:00:00Z', { amountCents: 1899 }),
 ];
 

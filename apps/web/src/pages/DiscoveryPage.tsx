@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { MarginCell } from '@/components/MarginCell';
 import { Thumb } from '@/components/Thumb';
 import { formatCents } from '@/lib/money';
-import { complianceLabel } from '@/lib/labels';
+import { complianceAdvice, complianceLabel } from '@/lib/labels';
 import { cn } from '@/lib/cn';
 import { CreateResultDrawer, type CreateResult } from '@/components/discovery/CreateResultDrawer';
 
@@ -64,6 +64,7 @@ export function DiscoveryPage() {
           <span className="min-w-0">
             <span className="block truncate max-w-[40vw] md:max-w-[36ch]">{i.title}</span>
             <span className="block text-[12px] text-muted truncate max-w-[40vw] md:max-w-none">{i.categoryHint}, {i.warehouseCountry === 'US' ? 'US warehouse' : `${i.warehouseCountry} warehouse`}, {i.stock} in stock</span>
+            {!i.compliance.ok && <span className="block text-[12px] text-floor truncate max-w-[40vw] md:max-w-[44ch]">Blocked: {i.compliance.code === 'HANDLING_TIME_EXCEEDED' ? 'lead time is longer than your handling time' : complianceLabel[i.compliance.code].toLowerCase()}</span>}
           </span>
         </span>
       ),
@@ -83,9 +84,12 @@ export function DiscoveryPage() {
         title="Discovery"
         description="Supplier products priced with your fees and target margin. Pick the ones you want and Floor drafts the listings."
         actions={
+          <>
+          <Link to="/products" className="inline-flex items-center h-9 px-3.5 rounded border border-rule bg-surface text-[14px] font-medium hover:bg-sunken">Your products</Link>
           <Button variant="primary" disabled={selected.size === 0} loading={create.isPending} onClick={onCreate}>
             Create {selected.size > 0 ? `${selected.size} ` : ''}listing{selected.size === 1 ? '' : 's'}
           </Button>
+          </>
         }
       />
 
@@ -123,7 +127,7 @@ export function DiscoveryPage() {
         {detail && (
           <div className="flex flex-col gap-4">
             {detail.images[0] && <Thumb src={detail.images[0]} className="w-full aspect-square" />}
-            {!detail.compliance.ok && <div className="rounded border border-floor/40 bg-floor/8 px-3 py-2 text-[13.5px]"><strong>{complianceLabel[detail.compliance.code]}.</strong> {detail.compliance.detail}</div>}
+            {!detail.compliance.ok && <div className="rounded border border-floor/40 bg-floor/8 px-3 py-2 text-[13.5px]"><strong>{complianceLabel[detail.compliance.code]}.</strong> {detail.compliance.detail}{complianceAdvice(detail.compliance.code, detail.supplier) && <> {complianceAdvice(detail.compliance.code, detail.supplier)}</>}</div>}
             <dl className="grid grid-cols-2 gap-y-2 text-[13.5px]">
               <dt className="text-muted">Supplier cost</dt><dd className="num text-right">{formatCents(detail.costCents)}</dd>
               <dt className="text-muted">Supplier shipping</dt><dd className="num text-right">{formatCents(detail.shippingCents)}</dd>

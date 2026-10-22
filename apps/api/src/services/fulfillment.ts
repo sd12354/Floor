@@ -1,6 +1,6 @@
 import type { Connectors } from '../connectors.js';
 import type { Db } from '../db/client.js';
-import type { Account, Order } from '../generated/prisma/client.js';
+import type { Account, Order, Prisma } from '../generated/prisma/client.js';
 import { writeEvent, writeLedger } from './audit.js';
 import { sendOutbound } from './messages.js';
 
@@ -23,10 +23,21 @@ export async function pollTracking(db: Db, connectors: Connectors, account: Acco
   return { shipped };
 }
 
-export async function markShipped(db: Db, connectors: Connectors, order: Order, listingTitle: string, trackingNumber: string, carrier: string, shippedAt: string): Promise<Order> {
+/**
+ * ordered -> shipped. The transition is claimed (compare-and-set) BEFORE eBay is told, so a double submit pushes
+ * tracking once. If the eBay push fails the claim is rolled back so the call can be retried.
+ */
+export async function markShipped(db: Db, connectors: Connectors, order: Order, listingTitle: string, trackingNumber: string, carrier: string, shippedAt: string, extra: Prisma.OrderUpdateManyMutationInput = {}): Promise<Order> {
   if (order.status !== 'ordered') return order;
-  await connectors.ebay.createShippingFulfillment({ ebayOrderId: order.ebayOrderId, trackingNumber, carrier, shippedAt });
-  const updated = await db.order.update({ where: { id: order.id }, data: { status: 'shipped', trackingNumber, carrier } });
+  const claimed = await db.order.updateMany({ where: { id: order.id, status: 'ordered' }, data: { status: 'shipped', trackingNumber, carrier, ...extra } });
+  if (claimed.count === 0) return db.order.findUniqueOrThrow({ where: { id: order.id } });
+  try {
+    await connectors.ebay.createShippingFulfillment({ ebayOrderId: order.ebayOrderId, trackingNumber, carrier, shippedAt });
+  } catch (err) {
+    await db.order.updateMany({ where: { id: order.id, status: 'shipped', trackingNumber }, data: { status: 'ordered', trackingNumber: null, carrier: null } });
+    throw err;
+  }
+  const updated = await db.order.findUniqueOrThrow({ where: { id: order.id } });
   await writeEvent(db, { accountId: order.accountId, orderId: order.id, type: 'order.shipped', payload: { trackingNumber, carrier, shippedAt } });
   await sendOutbound(db, connectors, updated, listingTitle, 'shipped');
   return updated;

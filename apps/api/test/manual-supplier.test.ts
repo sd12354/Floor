@@ -432,11 +432,12 @@ describe('manual order flow', () => {
     await t.api('POST', `/orders/${order.id}/supplier-order`, body);
     // Shipped orders no longer accept quotes, supplier orders or tracking.
     await t.api('POST', `/orders/${order.id}/tracking`, { trackingNumber: 'T1', carrier: 'C' });
-    for (const [path, payload] of [['supplier-quote', { costCents: 1, shippingCents: 0 }], ['supplier-order', body]] as const) {
-      const res = await t.api<ApiError>('POST', `/orders/${order.id}/${path}`, payload);
-      expect(res.status).toBe(422);
-      expect(err(res).code).toBe('ORDER_NOT_AWAITING_SUPPLIER');
-    }
+    const quoteLate = await t.api<ApiError>('POST', `/orders/${order.id}/supplier-quote`, { costCents: 1, shippingCents: 0 });
+    expect(quoteLate.status).toBe(422);
+    expect(err(quoteLate).code).toBe('ORDER_NOT_AWAITING_SUPPLIER');
+    // Replaying the recorded supplier order is still a 200 once shipped; a different id is a 409.
+    expect((await t.api<Ord>('POST', `/orders/${order.id}/supplier-order`, body)).status).toBe(200);
+    expect(err(await t.api<ApiError>('POST', `/orders/${order.id}/supplier-order`, { ...body, supplierOrderId: 'OTHER' })).code).toBe('SUPPLIER_ORDER_EXISTS');
     expect(err(await t.api<ApiError>('POST', `/orders/${order.id}/tracking`, { trackingNumber: 'T2', carrier: 'C' })).code).toBe('TRACKING_NOT_MANUAL');
     expect((await t.api('POST', '/orders/ord_missing/supplier-quote', { costCents: 1, shippingCents: 0 })).status).toBe(404);
     expect((await t.api('POST', '/orders/ord_missing/supplier-order', body)).status).toBe(404);
@@ -651,6 +652,138 @@ describe('authentication', () => {
       const res = await t.anon<ApiError>(method as 'GET', url, body);
       expect(res.status, `${method} ${url}`).toBe(401);
       expect(err(res).code).toBe('UNAUTHENTICATED');
+    }
+  });
+});
+
+describe('review fixes', () => {
+  const hook = (listingId: string, n: string, price: number) => ({
+    ebayOrderId: `EBAY-REV-${n}`,
+    listingId,
+    buyerName: 'Buyer ' + n,
+    shipTo: { line1: '1 Main St', city: 'Austin', state: 'TX', postalCode: '78701', country: 'US' },
+    salePriceCents: price,
+  });
+
+  it('cannot oversell: the last unit goes to one order, the other is cancelled out_of_stock', async () => {
+    const { product, listing } = await manualListing({ title: 'Last unit organizer', stock: 1 });
+    const [a, b] = await Promise.all([
+      t.api<{ order: Ord }>('POST', '/webhooks/ebay', hook(listing.id, 'A', listing.priceCents)),
+      t.api<{ order: Ord }>('POST', '/webhooks/ebay', hook(listing.id, 'B', listing.priceCents)),
+    ]);
+    expect([a.body.order.status, b.body.order.status].sort()).toEqual(['awaiting_supplier', 'cancelled']);
+    const row = await t.db.product.findUniqueOrThrow({ where: { id: product.id } });
+    expect(row.stock).toBe(0);
+    const lost = [a.body.order, b.body.order].find((o) => o.status === 'cancelled') as Ord;
+    const d = await detail(lost.id);
+    expect(d.ledger).toEqual([]);
+    expect(d.events.find((e) => e.type === 'order.cancelled')?.payload).toMatchObject({ reason: 'out_of_stock' });
+    expect(await t.db.listing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: 'paused', pauseReason: 'out_of_stock' });
+    // The cancelled loser did not hand back a unit it never held.
+    expect((await t.db.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(0);
+  });
+
+  it('returns the unit when the seller cancels an awaiting order, but not once it is ordered', async () => {
+    const { product, listing } = await manualListing({ title: 'Restock organizer', stock: 2 });
+    const one = await simulate(listing.id);
+    const two = await simulate(listing.id);
+    expect((await t.db.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(0);
+    expect((await t.db.listing.findUniqueOrThrow({ where: { id: listing.id } })).status).toBe('paused');
+    await t.api('POST', `/orders/${one.id}/decision`, { action: 'cancel' });
+    expect((await t.db.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(1);
+    expect((await t.db.listing.findUniqueOrThrow({ where: { id: listing.id } })).status).toBe('active');
+    await t.api('POST', `/orders/${two.id}/supplier-order`, { supplierOrderId: 'R2', costCents: 1000, shippingCents: 200 });
+    expect((await t.db.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(1);
+  });
+
+  it('a seller PATCH of stock is not clobbered by the pipeline', async () => {
+    const { product, listing } = await manualListing({ title: 'Patch survives organizer', stock: 5 });
+    await t.api('PATCH', `/manual-products/${product.id}`, { stock: 9 });
+    await simulate(listing.id);
+    expect((await t.db.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(8);
+  });
+
+  it('cancel racing the supplier order never leaves a half-state', async () => {
+    const { product, listing } = await manualListing({ title: 'Race cancel organizer', stock: 3 });
+    const order = await simulate(listing.id);
+    const [rec, cancel] = await Promise.all([
+      t.api('POST', `/orders/${order.id}/supplier-order`, { supplierOrderId: 'RC1', costCents: 1000, shippingCents: 200 }),
+      t.api('POST', `/orders/${order.id}/decision`, { action: 'cancel' }),
+    ]);
+    const d = await detail(order.id);
+    const stock = (await t.db.product.findUniqueOrThrow({ where: { id: product.id } })).stock;
+    if (d.status === 'ordered') {
+      expect(rec.status).toBe(200);
+      expect(cancel.status).toBeGreaterThanOrEqual(409);
+      expect(d.ledger).toHaveLength(4);
+      expect(stock).toBe(2);
+    } else {
+      expect(d.status).toBe('cancelled');
+      expect(rec.status).toBe(422);
+      expect(d.ledger).toEqual([]);
+      expect(stock).toBe(3);
+    }
+  });
+
+  it('a double-clicked tracking submit pushes to eBay once, and a failed push can be retried', async () => {
+    const { listing } = await manualListing({ title: 'Double click organizer' });
+    const order = await simulate(listing.id);
+    await t.api('POST', `/orders/${order.id}/supplier-order`, { supplierOrderId: 'DC1', costCents: 1000, shippingCents: 200 });
+    const ebay = t.connectors.mockEbay;
+    if (!ebay) throw new Error('mock ebay');
+    const original = ebay.createShippingFulfillment.bind(ebay);
+    let fail = true;
+    ebay.createShippingFulfillment = async (input) => {
+      if (fail) {
+        fail = false;
+        throw new Error('ebay down');
+      }
+      return original(input);
+    };
+    const failed = await t.api('POST', `/orders/${order.id}/tracking`, { trackingNumber: 'DC-T', carrier: 'C' });
+    expect(failed.status).toBe(500);
+    expect((await detail(order.id)).status).toBe('ordered');
+    const [x, y] = await Promise.all([
+      t.api<Ord>('POST', `/orders/${order.id}/tracking`, { trackingNumber: 'DC-T', carrier: 'C' }),
+      t.api<Ord>('POST', `/orders/${order.id}/tracking`, { trackingNumber: 'DC-T', carrier: 'C' }),
+    ]);
+    expect([x.status, y.status].some((s) => s === 200)).toBe(true);
+    expect(ebay.fulfillments.filter((f) => f.ebayOrderId === order.ebayOrderId)).toHaveLength(1);
+    expect((await detail(order.id)).status).toBe('shipped');
+    ebay.createShippingFulfillment = original;
+  });
+
+  it('a replayed supplier order resends a lost order_confirmed message once', async () => {
+    const { listing } = await manualListing({ title: 'Lost confirmation organizer' });
+    const order = await simulate(listing.id);
+    const body = { supplierOrderId: 'LC1', costCents: 1000, shippingCents: 200 };
+    await t.api('POST', `/orders/${order.id}/supplier-order`, body);
+    await t.db.message.deleteMany({ where: { orderId: order.id } });
+    expect((await t.api('POST', `/orders/${order.id}/supplier-order`, body)).status).toBe(200);
+    expect((await t.api('POST', `/orders/${order.id}/supplier-order`, body)).status).toBe(200);
+    expect((await detail(order.id)).messages.filter((m) => m.kind === 'order_confirmed')).toHaveLength(1);
+  });
+
+  it('rejects oversized numbers with 400 VALIDATION instead of failing', async () => {
+    const huge = 1e15;
+    for (const over of [{ costCents: huge }, { shippingCents: huge }, { costCents: 100_000_001 }, { stock: 1_000_001 }, { stock: huge }]) {
+      const res = await t.api<ApiError>('POST', '/manual-products', { ...goodProduct, ...over });
+      expect(res.status, JSON.stringify(over)).toBe(400);
+      expect(err(res).code).toBe('VALIDATION');
+    }
+    const p = await addProduct({ costCents: 100_000_000, stock: 1_000_000 });
+    expect((await t.api('PATCH', `/manual-products/${p.id}`, { stock: huge })).status).toBe(400);
+    const { listing } = await manualListing({ title: 'Bounds organizer' });
+    const order = await simulate(listing.id);
+    for (const [path, body] of [
+      ['supplier-quote', { costCents: huge, shippingCents: 0 }],
+      ['supplier-quote', { costCents: 1, shippingCents: huge }],
+      ['supplier-order', { supplierOrderId: 'B', costCents: huge, shippingCents: 0 }],
+      ['supplier-order', { supplierOrderId: 'B', costCents: 100, shippingCents: huge }],
+    ] as const) {
+      const res = await t.api<ApiError>('POST', `/orders/${order.id}/${path}`, body);
+      expect(res.status).toBe(400);
+      expect(err(res).code).toBe('VALIDATION');
     }
   });
 });

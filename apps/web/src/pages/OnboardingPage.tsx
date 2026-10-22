@@ -14,6 +14,7 @@ const suppliers: { kind: SupplierKind; name: string; blurb: string; ready: boole
   { kind: 'mock', name: 'Mock supplier', blurb: 'A demo catalog of 28 products with live price drift. No credentials. Use it to learn Floor before going real.', ready: true },
   { kind: 'cjdropshipping', name: 'CJdropshipping', blurb: 'US and CN warehouses, API fulfilment. Needs CJ_API_KEY in the API environment.', ready: false },
   { kind: 'spocket', name: 'Spocket', blurb: 'US and EU suppliers, faster shipping. Needs SPOCKET_API_KEY.', ready: false },
+  { kind: 'manual', name: 'Manual supplier', blurb: 'Alibaba, a CJ account without API access, or any wholesaler. You type in your products and place each order by hand; Floor still guards your margin. No credentials.', ready: true },
 ];
 
 function Step({ n, title, complete, children }: { n: number; title: string; complete: boolean; children: ReactNode }) {
@@ -95,7 +96,7 @@ export function OnboardingPage() {
             </Step>
 
             <Step n={2} title="Connect a supplier" complete={supplierDone}>
-              <div className="grid sm:grid-cols-3 gap-3">
+              <div className="grid sm:grid-cols-2 gap-3">
                 {suppliers.map((s) => {
                   const connected = account.supplierConnections.find((c) => c.supplier === s.kind);
                   return (
@@ -105,7 +106,7 @@ export function OnboardingPage() {
                         {connected ? <Badge tone={connected.status === 'connected' ? 'good' : 'thin'}>{connected.status === 'connected' ? 'Connected' : 'Needs key'}</Badge> : !s.ready && <Badge tone="outline">Needs API key</Badge>}
                       </div>
                       <p className="text-[12.5px] text-muted flex-1 leading-snug">{s.blurb}</p>
-                      {!connected && <Button size="sm" variant={s.ready ? 'primary' : 'secondary'} onClick={() => onSupplier(s.kind)} loading={addSupplier.isPending && addSupplier.variables?.supplier === s.kind}>Connect</Button>}
+                      {!connected && <Button size="sm" variant={s.ready ? 'primary' : 'secondary'} onClick={() => onSupplier(s.kind)} loading={addSupplier.isPending && addSupplier.variables?.supplier === s.kind} aria-label={`Connect ${s.name}`}>Connect</Button>}
                     </div>
                   );
                 })}

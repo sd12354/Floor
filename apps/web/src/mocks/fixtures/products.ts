@@ -59,3 +59,19 @@ export const products: Product[] = seeds.map(([sku, title, cost, ship, stock, wh
 export const blockedBrands = ['yeti', 'stanley', 'lululemon'];
 
 export const byId = (id: string): Product | undefined => products.find((p) => p.id === id);
+
+/** Seller-entered products (supplier 'manual'). The first is listed and has an order waiting; the second is too slow to list. */
+export const manualProducts: Product[] = [
+  {
+    id: 'prod_man_01', supplier: 'manual', supplierSku: 'man_k3x9a2', title: 'Bamboo cutlery travel set with case',
+    description: 'Reusable bamboo fork, knife, spoon and chopsticks in a zip case. Ships from a Shenzhen wholesaler in about two days.',
+    images: [img('man-01'), img('man-01-b')], costCents: 1240, shippingCents: 310, stock: 85, warehouseCountry: 'CN', handlingDays: 2,
+    categoryHint: 'Kitchen', supplierUrl: 'https://supplier.example.com/p/bamboo-cutlery-set', updatedAt: '2026-10-18T10:00:00Z',
+  },
+  {
+    id: 'prod_man_02', supplier: 'manual', supplierSku: 'man_q8r1d5', title: 'Silicone stretch lids, 6 sizes',
+    description: 'Six reusable silicone lids that stretch over bowls and cans. Made to order, so the lead time is long.',
+    images: [img('man-02')], costCents: 460, shippingCents: 190, stock: 300, warehouseCountry: 'CN', handlingDays: 12,
+    categoryHint: 'Kitchen', supplierUrl: 'https://supplier.example.com/p/stretch-lids', updatedAt: '2026-10-19T08:30:00Z',
+  },
+];

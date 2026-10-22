@@ -12,6 +12,22 @@ export function formatCents(cents: Cents | undefined | null, opts: { signed?: bo
   return opts.signed && cents > 0 ? `+${abs}` : abs;
 }
 
+/** Contract upper bounds (CONTRACT.md → Manual supplier): money in cents, stock in units. */
+export const MAX_MONEY_CENTS = 100_000_000;
+export const MAX_STOCK = 1_000_000;
+
+/**
+ * What a person typed into a dollar box → integer cents, or null if it is not a whole number of cents.
+ * Parses the digits as text, never through a float, so "19.99" is exactly 1999. Accepts a leading "$" and spaces;
+ * commas only as proper thousands groups ("1,250.50" yes; "12,50", ",5" and "1,25,0" no).
+ */
+export function parseCents(text: string): Cents | null {
+  const t = text.trim().replace(/^\$/, '').trim();
+  const m = /^(\d{1,9}|\d{1,3}(?:,\d{3})+)(?:\.(\d{0,2}))?$/.exec(t);
+  if (!m || (m[1] ?? '').length > 13) return null;
+  return Number((m[1] ?? '').replace(/,/g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'));
+}
+
 /** 0.136 → "13.6%". */
 export function formatPct(pct: Pct | undefined | null, digits = 1): string {
   if (pct === undefined || pct === null || Number.isNaN(pct)) return '—';

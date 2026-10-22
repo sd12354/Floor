@@ -4,7 +4,7 @@ import type {
 } from '@/api/types';
 import { computeMargin, priceForTarget } from '@/lib/money';
 import { demoAccount, freshAccount } from './fixtures/account';
-import { blockedBrands, byId as productById, products } from './fixtures/products';
+import { blockedBrands, manualProducts as seedManualProducts, products } from './fixtures/products';
 import { listings as seedListings } from './fixtures/listings';
 import { events as seedEvents, ledger as seedLedger, messages as seedMessages, orders as seedOrders } from './fixtures/orders';
 
@@ -16,6 +16,8 @@ const now = () => new Date().toISOString();
 export interface MockState {
   account: Account;
   listings: Listing[];
+  /** Products the seller typed in (supplier 'manual'). The fixture catalog in `products` is separate. */
+  manualProducts: Product[];
   orders: Order[];
   events: Event[];
   messages: Message[];
@@ -29,27 +31,34 @@ export let state: MockState = makeState();
 export function makeState(opts: { fresh?: boolean } = {}): MockState {
   const account = clone(opts.fresh ? freshAccount : demoAccount);
   const listings = clone(seedListings);
+  const manualProducts = clone(seedManualProducts);
   for (const l of listings) {
-    const p = productById(l.productId);
+    const p = [...products, ...manualProducts].find((x) => x.id === l.productId);
     if (p) l.floorPriceCents = priceForTarget(p.costCents, p.shippingCents, account.fees, { ...account.pricingRule, targetPct: account.pricingRule.floorPct });
   }
-  return { account, listings, orders: clone(seedOrders), events: clone(seedEvents), messages: clone(seedMessages), ledger: clone(seedLedger), auth: { hasUsers: true, email: 'seller@floor.test', password: 'floor-demo-pass' } };
+  return { account, listings, manualProducts, orders: clone(seedOrders), events: clone(seedEvents), messages: clone(seedMessages), ledger: clone(seedLedger), auth: { hasUsers: true, email: 'seller@floor.test', password: 'floor-demo-pass' } };
 }
 
 export function resetState(opts: { fresh?: boolean } = {}) {
   state = makeState(opts);
 }
 
-function pushEvent(type: string, payload: Record<string, unknown>, ref: { orderId?: string; listingId?: string } = {}) {
+export const productById = (id: string): Product | undefined => products.find((p) => p.id === id) ?? state.manualProducts.find((p) => p.id === id);
+/** The whole catalog Discovery shows: the seller's own products first, then the supplier fixtures. */
+export const allProducts = (): Product[] => [...state.manualProducts, ...products];
+
+export function pushEvent(type: string, payload: Record<string, unknown>, ref: { orderId?: string; listingId?: string } = {}) {
   state.events.unshift({ id: nextId('evt'), accountId: 'acc_demo', type, payload, at: now(), ...ref });
 }
 
 // Compliance mirrors the backend gate closely enough for the UI to show every branch.
 export function compliance(p: Product, handlingTimeDays: number): ComplianceResult {
+  if (p.supplier === 'manual' && p.handlingDays > handlingTimeDays)
+    return { ok: false, code: 'HANDLING_TIME_EXCEEDED', detail: `Lead time of ${p.handlingDays} days is longer than your ${handlingTimeDays}-day handling time` };
   if (p.brand && blockedBrands.includes(p.brand.toLowerCase()))
     return { ok: false, code: 'VERO_MATCH', detail: `Brand "${p.brand}" is on the VeRO blocklist` };
   if (p.images.length === 0) return { ok: false, code: 'NO_IMAGES', detail: 'Supplier provides no product images' };
-  if (p.shippingCents >= 900 && p.warehouseCountry !== 'US' && handlingTimeDays <= 3)
+  if (p.supplier !== 'manual' && p.shippingCents >= 900 && p.warehouseCountry !== 'US' && handlingTimeDays <= 3)
     return { ok: false, code: 'HANDLING_TIME_EXCEEDED', detail: `Estimated 8–12 day ship time exceeds your ${handlingTimeDays}-day handling time` };
   return { ok: true };
 }
@@ -120,6 +129,8 @@ export function sync() {
     if (l.status !== 'active' && l.status !== 'paused') continue;
     const p = productById(l.productId);
     if (!p) continue;
+    // There is no remote source of truth for a manual product, so the sweep never moves its numbers.
+    if (p.supplier === 'manual') { l.lastSyncAt = now(); continue; }
     const r = Math.random();
     if (r < 0.2) {
       const drift = 1 + (Math.random() * 0.3 - 0.15);
@@ -142,13 +153,27 @@ export function sync() {
   return { repriced, paused, resumed, checked: state.listings.length, blocked: 0 };
 }
 
-function addLedger(orderId: string, kind: LedgerEntry['kind'], amountCents: number) {
+export function addLedger(orderId: string, kind: LedgerEntry['kind'], amountCents: number) {
   state.ledger.unshift({ id: nextId('led'), accountId: 'acc_demo', orderId, kind, amountCents, at: now() });
 }
 
+/** Today's ledger spend plus the cost reserved by orders still waiting for the seller to buy them (any age, per the contract). */
 function spentToday(): number {
   const today = now().slice(0, 10);
-  return state.ledger.filter((e) => (e.kind === 'supplier_cost' || e.kind === 'supplier_shipping') && e.at.startsWith(today)).reduce((s, e) => s - e.amountCents, 0);
+  const ledgerSpend = state.ledger.filter((e) => (e.kind === 'supplier_cost' || e.kind === 'supplier_shipping') && e.at.startsWith(today)).reduce((s, e) => s - e.amountCents, 0);
+  const reserved = state.orders.filter((o) => o.status === 'awaiting_supplier').reduce((s, o) => {
+    const p = productById(state.listings.find((l) => l.id === o.listingId)?.productId ?? '');
+    return s + (p ? p.costCents + p.shippingCents : 0);
+  }, 0);
+  return ledgerSpend + reserved;
+}
+
+/** Manual-supplier products never call a supplier: the order waits for the seller. Nothing is written to the ledger yet. */
+function awaitSupplier(o: Order) {
+  o.status = 'awaiting_supplier';
+  for (const k of ['supplierCostCents', 'supplierShippingCents', 'ebayFeesCents', 'netProfitCents'] as const) delete o[k];
+  o.updatedAt = now();
+  pushEvent('order.awaiting_supplier', {}, { orderId: o.id });
 }
 
 function placeSupplierOrder(o: Order) {
@@ -183,8 +208,11 @@ export function simulate(body: { listingId: string; buyerName?: string; priceDri
     ebayFeesCents: m.ebayFeesCents, netProfitCents: m.netProfitCents, createdAt: now(), updatedAt: now(),
   };
   state.orders.unshift(o);
-  addLedger(o.id, 'sale', o.salePriceCents + o.buyerShippingCents);
-  addLedger(o.id, 'ebay_fee', -m.ebayFeesCents);
+  const manual = p.supplier === 'manual';
+  if (!manual) {
+    addLedger(o.id, 'sale', o.salePriceCents + o.buyerShippingCents);
+    addLedger(o.id, 'ebay_fee', -m.ebayFeesCents);
+  }
   pushEvent('order.paid', { salePriceCents: o.salePriceCents }, { orderId: o.id });
   pushEvent('order.checking', { supplierCostCents: cost, previousCostCents: p.costCents, netMarginPct: m.netMarginPct }, { orderId: o.id });
 
@@ -197,6 +225,7 @@ export function simulate(body: { listingId: string; buyerName?: string; priceDri
   if (decision.action === 'cancel') { o.status = 'cancelled'; pushEvent('order.cancelled', { reason: decision.reason }, { orderId: o.id }); }
   else if (decision.action === 'hold') { o.status = 'held'; o.holdDeadline = decision.deadline; pushEvent('order.held', { deadline: decision.deadline }, { orderId: o.id }); }
   else if (spentToday() + cost + p.shippingCents > state.account.dailySpendCapCents) { o.status = 'queued'; pushEvent('order.queued', { spentTodayCents: spentToday(), capCents: state.account.dailySpendCapCents }, { orderId: o.id }); }
+  else if (manual) awaitSupplier(o);
   else placeSupplierOrder(o);
   return o;
 }
@@ -204,12 +233,19 @@ export function simulate(body: { listingId: string; buyerName?: string; priceDri
 export function decide(id: string, action: 'fulfil' | 'cancel'): Order {
   const o = state.orders.find((x) => x.id === id);
   if (!o) throw Object.assign(new Error('Order not found'), { status: 404, code: 'NOT_FOUND' });
-  if (o.status !== 'held') throw Object.assign(new Error(`Order is ${o.status}, decisions apply to held orders only`), { status: 422, code: 'ORDER_NOT_HELD' });
+  const awaiting = o.status === 'awaiting_supplier';
+  if (!(o.status === 'held' || (awaiting && action === 'cancel'))) throw Object.assign(new Error(`Order is ${o.status}, decisions apply to held orders only`), { status: 422, code: 'ORDER_NOT_HELD' });
   pushEvent('order.decision', { action }, { orderId: o.id });
   if (action === 'cancel') { o.status = 'cancelled'; pushEvent('order.cancelled', { reason: 'seller_decision' }, { orderId: o.id }); }
+  else if (productById(state.listings.find((l) => l.id === o.listingId)?.productId ?? '')?.supplier === 'manual') awaitSupplier(o);
   else placeSupplierOrder(o);
   o.updatedAt = now();
   return o;
+}
+
+function awaitingSummary(): { count: number; oldestAt?: string } {
+  const waiting = state.orders.filter((o) => o.status === 'awaiting_supplier').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return { count: waiting.length, oldestAt: waiting[0]?.createdAt };
 }
 
 export function dashboard(): DashboardResponse {
@@ -229,15 +265,16 @@ export function dashboard(): DashboardResponse {
     today: { orders: todays.length, revenueCents: todays.reduce((s, o) => s + o.salePriceCents, 0), profitCents: todays.reduce((s, o) => s + (o.netProfitCents ?? 0), 0), supplierSpendCents: spentToday(), spendCapCents: state.account.dailySpendCapCents },
     health: { lateShipmentPct: 0.012, defectPct: 0.0, casesOpen: 0, thresholds: { lateShipmentPct: 0.03, defectPct: 0.005 } },
     listings: { active: count('active'), paused: count('paused'), draft: count('draft'), blocked: count('blocked'), ended: count('ended') },
+    awaitingSupplier: awaitingSummary(),
     recentEvents: state.events.slice(0, 12),
   };
 }
 
 export function addSupplier(supplier: SupplierKind): SupplierConnection {
-  const labels: Record<SupplierKind, string> = { mock: 'Mock supplier (demo catalog)', cjdropshipping: 'CJdropshipping', spocket: 'Spocket' };
-  const c: SupplierConnection = { id: nextId('sup'), accountId: 'acc_demo', supplier, status: supplier === 'mock' ? 'connected' : 'not_configured', label: labels[supplier], createdAt: now() };
+  const labels: Record<SupplierKind, string> = { mock: 'Mock supplier (demo catalog)', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', manual: 'Manual supplier (Alibaba, CJ, any wholesaler)' };
+  const c: SupplierConnection = { id: nextId('sup'), accountId: 'acc_demo', supplier, status: supplier === 'mock' || supplier === 'manual' ? 'connected' : 'not_configured', label: labels[supplier], createdAt: now() };
   state.account.supplierConnections.push(c);
   return c;
 }
 
-export { products, productById };
+export { products };

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { notFound, unprocessable } from '../errors.js';
+import { conflict, notFound, unprocessable } from '../errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { pagination, parse } from '../plugins/validate.js';
 import { serializeEvent, serializeLedger, serializeMessage, serializeOrder } from '../serialize.js';
@@ -72,6 +72,10 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
       body.action === 'fulfil'
         ? await fulfilHeldOrder(app.db, app.connectors, account, order.id)
         : await cancelOrder(app.db, app.connectors, account, order.id, 'manual', { decision: { action: 'cancel', reason: 'manual' } });
+    // A cancel that lost a race (e.g. the supplier order was recorded first) must not report success.
+    if (body.action === 'cancel' && !['cancelled', 'refunded'].includes(updated.status)) {
+      throw conflict('ORDER_CHANGED', `Order moved to ${updated.status} before it could be cancelled`);
+    }
     return serializeOrder(updated);
   });
 

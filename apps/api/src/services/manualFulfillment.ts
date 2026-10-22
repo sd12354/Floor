@@ -4,6 +4,8 @@ import type { Db } from '../db/client.js';
 import { AppError, conflict, notFound, unprocessable } from '../errors.js';
 import type { Account, Listing, Order, Product } from '../generated/prisma/client.js';
 import { writeEvent, writeLedger } from './audit.js';
+import { cancelOrder } from './orderPipeline.js';
+import { runSync } from './syncService.js';
 import { markDelivered, markShipped, NEW_SELLER_PAYOUT_DELAY_DAYS, PAYOUT_DELAY_DAYS } from './fulfillment.js';
 import { sendOutbound } from './messages.js';
 import { accountPricing } from './pricingService.js';
@@ -57,7 +59,7 @@ function marginFor(order: Order, account: Account, costCents: number, shippingCe
  * refreshed from the product row; the spend cap reserves them while the order is `awaiting_supplier`.
  * Compare-and-set, so a drain racing a request cannot move (or announce) an order twice.
  */
-export async function moveToAwaitingSupplier(db: Db, account: Account, order: Order, product: Product, now = new Date()): Promise<Order> {
+export async function moveToAwaitingSupplier(db: Db, connectors: Connectors, account: Account, order: Order, product: Product, now = new Date()): Promise<Order> {
   const margin = marginFor(order, account, product.costCents, product.shippingCents);
   const claimed = await db.order.updateMany({
     where: { id: order.id, supplierOrderId: null, status: { in: ['checking', 'queued', 'held'] } },
@@ -71,6 +73,11 @@ export async function moveToAwaitingSupplier(db: Db, account: Account, order: Or
     },
   });
   if (claimed.count > 0) {
+    // Take the unit: atomic, so two paid orders cannot both claim the last one.
+    const taken = await db.product.updateMany({ where: { id: product.id, stock: { gt: 0 } }, data: { stock: { decrement: 1 } } });
+    if (taken.count === 0) {
+      return cancelOrder(db, connectors, account, order.id, 'out_of_stock', { decision: { action: 'cancel', reason: 'out_of_stock' } }, false);
+    }
     await writeEvent(db, {
       accountId: order.accountId,
       orderId: order.id,
@@ -78,6 +85,8 @@ export async function moveToAwaitingSupplier(db: Db, account: Account, order: Or
       payload: { from: order.status, costCents: product.costCents, shippingCents: product.shippingCents, maxSupplierCostCents: maxSupplierCostFor(order, account) },
       at: now,
     });
+    // Pause listings (out_of_stock) or lower the eBay quantity now that a unit is spoken for.
+    await runSync(db, connectors, account, { productId: product.id });
   }
   return db.order.findUniqueOrThrow({ where: { id: order.id } });
 }
@@ -128,7 +137,7 @@ export async function recordSupplierOrder(db: Db, connectors: Connectors, accoun
     if (o.supplierOrderId === input.supplierOrderId) return o;
     throw conflict('SUPPLIER_ORDER_EXISTS', `Order already has supplier order ${o.supplierOrderId ?? '?'}; one eBay order maps to one supplier order`);
   };
-  if (order.status === 'ordered') return replay(order);
+  if (['ordered', 'shipped', 'delivered'].includes(order.status)) return replayRecorded(db, connectors, order, replay(order));
   requireAwaiting(order);
 
   const margin = marginFor(order, account, input.costCents, input.shippingCents);
@@ -171,12 +180,25 @@ export async function recordSupplierOrder(db: Db, connectors: Connectors, accoun
   });
   if (!updated) {
     const current = await db.order.findUniqueOrThrow({ where: { id: order.id } });
-    if (current.status === 'ordered') return replay(current);
+    if (['ordered', 'shipped', 'delivered'].includes(current.status)) return replayRecorded(db, connectors, current, replay(current));
     requireAwaiting(current);
     throw conflict('SUPPLIER_ORDER_EXISTS', 'Order already has a supplier order');
   }
   await sendOutbound(db, connectors, updated, order.listing.title, 'order_confirmed');
   return updated;
+}
+
+/**
+ * A repeat of an already-recorded supplier order returns it unchanged. The buyer confirmation is sent after the
+ * booking commits, so a crash in between would lose it; a replay resends it once if no confirmation exists yet.
+ */
+async function replayRecorded(db: Db, connectors: Connectors, order: Order, recorded: Order): Promise<Order> {
+  const sent = await db.message.count({ where: { orderId: order.id, kind: 'order_confirmed' } });
+  if (sent === 0) {
+    const listing = await db.listing.findUniqueOrThrow({ where: { id: order.listingId }, select: { title: true } });
+    await sendOutbound(db, connectors, order, listing.title, 'order_confirmed');
+  }
+  return recorded;
 }
 
 /** The seller got a tracking number from the supplier: push it to eBay like automatic tracking and mark shipped. */
@@ -185,9 +207,8 @@ export async function recordManualTracking(db: Db, connectors: Connectors, accou
   if (order.status !== 'ordered' || order.listing.product.supplier !== 'manual') {
     throw unprocessable('TRACKING_NOT_MANUAL', 'Tracking can be added by hand only to ordered orders from a manual supplier');
   }
-  const shipped = await markShipped(db, connectors, order, order.listing.title, trackingNumber, carrier, now.toISOString());
   const delayDays = account.newSeller ? NEW_SELLER_PAYOUT_DELAY_DAYS : PAYOUT_DELAY_DAYS;
-  return db.order.update({ where: { id: shipped.id }, data: { payoutExpectedAt: new Date(now.getTime() + delayDays * DAY_MS) } });
+  return markShipped(db, connectors, order, order.listing.title, trackingNumber, carrier, now.toISOString(), { payoutExpectedAt: new Date(now.getTime() + delayDays * DAY_MS) });
 }
 
 /** Delivery is never detected for manual orders: the seller confirms it. Idempotent once delivered. */

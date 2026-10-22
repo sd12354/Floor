@@ -8,6 +8,7 @@ import { explainLadder, orderStatusLabel } from '@/lib/labels';
 import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { OrderPnl } from '@/components/orders/OrderPnl';
 import { OrderMessages } from '@/components/orders/OrderMessages';
+import { SupplierOrderPanel } from '@/components/orders/SupplierOrderPanel';
 import { orderStatusTone as statusTone } from '@/lib/tones';
 
 export function OrderDetailPage() {
@@ -35,7 +36,8 @@ export function OrderDetailPage() {
     });
 
   const listingTitle = o.listing?.title;
-  const ctx = { floorPct: formatPct(account?.pricingRule.floorPct ?? 0.1, 0) };
+  const ctx = { floorPct: formatPct(account?.pricingRule.floorPct ?? 0.1, 0), manual: o.supplier?.kind === 'manual' };
+  const rule = account?.pricingRule ?? { floorPct: 0.1, targetPct: 0.2 };
 
   return (
     <>
@@ -62,6 +64,8 @@ export function OrderDetailPage() {
         </div>
       )}
 
+      {o.supplier && <SupplierOrderPanel order={o} rule={rule} />}
+
       <div className="grid lg:grid-cols-3 gap-3 items-start">
         <Card title="Timeline" className="lg:row-span-2">
           <OrderTimeline order={o} />
@@ -83,7 +87,7 @@ export function OrderDetailPage() {
             <dt className="text-muted">Supplier order</dt>
             <dd className="num">{o.supplierOrderId ?? <span className="text-faint">Not placed</span>}</dd>
             <dt className="text-muted">Tracking</dt>
-            <dd className="num break-all">{o.trackingNumber ? <>{o.carrier} {o.trackingNumber}</> : <span className="text-faint">{o.status === 'ordered' ? 'Waiting for the supplier' : 'None'}</span>}</dd>
+            <dd className="num break-all">{o.trackingNumber ? <>{o.carrier} {o.trackingNumber}</> : <span className="text-faint">{o.status === 'ordered' ? (ctx.manual ? 'Add it above when your supplier ships' : 'Waiting for the supplier') : 'None'}</span>}</dd>
             <dt className="text-muted">Payout</dt>
             <dd>{o.paidOutAt ? <span className="text-green">Paid {formatDate(o.paidOutAt)}</span> : o.payoutExpectedAt ? `Expected ${formatDate(o.payoutExpectedAt)}` : <span className="text-faint">—</span>}</dd>
           </dl>

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutGrid, Search, Tags, Package, BookOpen, MessageSquare, Settings, LogOut, type LucideIcon } from 'lucide-react';
+import { LayoutGrid, Search, Tags, Package, Boxes, BookOpen, MessageSquare, Settings, LogOut, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useDashboard, useMe, useSignOut } from '@/api/hooks';
 import { formatCents } from '@/lib/money';
@@ -10,6 +10,8 @@ interface NavItem { to: string; label: string; icon: LucideIcon; mobile?: boolea
 const nav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, mobile: true },
   { to: '/discovery', label: 'Discovery', icon: Search, mobile: true },
+  // Desktop sidebar only: the mobile bar holds five tabs, so phones reach this from Settings and Discovery.
+  { to: '/products', label: 'Your products', icon: Boxes },
   { to: '/listings', label: 'Listings', icon: Tags, mobile: true },
   { to: '/orders', label: 'Orders', icon: Package, mobile: true },
   { to: '/ledger', label: 'Ledger', icon: BookOpen },

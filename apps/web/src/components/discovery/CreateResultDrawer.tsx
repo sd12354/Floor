@@ -2,13 +2,15 @@ import { Link } from 'react-router-dom';
 import type { CreateListingsResponse, DiscoveryItem } from '@/api/types';
 import { Badge, Button, Drawer } from '@/components/ui';
 import { formatCents } from '@/lib/money';
-import { complianceLabel } from '@/lib/labels';
+import { complianceAdvice, complianceLabel } from '@/lib/labels';
 
 export type CreateResult = CreateListingsResponse & { products: DiscoveryItem[] };
 
 /** What happened after "Create listings": drafts made, and what the compliance gate refused and why. */
 export function CreateResultDrawer({ result, onClose }: { result: CreateResult | null; onClose: () => void }) {
   const titleOf = (productId: string) => result?.products.find((p) => p.id === productId)?.title ?? productId;
+  const adviceFor = (b: CreateResult['blocked'][number]) =>
+    b.compliance.ok ? undefined : complianceAdvice(b.compliance.code, result?.products.find((p) => p.id === b.productId)?.supplier);
   return (
     <Drawer
       open={!!result}
@@ -46,7 +48,7 @@ export function CreateResultDrawer({ result, onClose }: { result: CreateResult |
                       <span className="truncate">{titleOf(b.productId)}</span>
                       {!b.compliance.ok && <Badge tone="below">{complianceLabel[b.compliance.code]}</Badge>}
                     </div>
-                    {!b.compliance.ok && <p className="text-muted text-[12.5px] mt-0.5">{b.compliance.detail}</p>}
+                    {!b.compliance.ok && <p className="text-muted text-[12.5px] mt-0.5">{b.compliance.detail}{adviceFor(b) && <> {adviceFor(b)}</>}</p>}
                   </li>
                 ))}
               </ul>

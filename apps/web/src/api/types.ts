@@ -1,3 +1,4 @@
+import type { ManualSupplierRef } from './manualTypes';
 // Types copied from docs/CONTRACT.md. Names are kept identical to the contract.
 
 export type Cents = number;
@@ -47,7 +48,7 @@ export type ComplianceCode =
 
 export type ComplianceResult = { ok: true } | { ok: false; code: ComplianceCode; detail: string };
 
-export type SupplierKind = 'mock' | 'cjdropshipping' | 'spocket';
+export type SupplierKind = 'mock' | 'cjdropshipping' | 'spocket' | 'manual';
 
 export interface SupplierConnection {
   id: string;
@@ -98,6 +99,8 @@ export interface Product {
   handlingDays: number;
   brand?: string;
   categoryHint?: string;
+  /** v1.3: https link to the supplier's own listing. Manual products only; shown to the seller, never fetched. */
+  supplierUrl?: string;
   updatedAt: string;
 }
 
@@ -139,6 +142,7 @@ export type OrderStatus =
   | 'checking'
   | 'held'
   | 'queued'
+  | 'awaiting_supplier'
   | 'ordered'
   | 'shipped'
   | 'delivered'
@@ -232,7 +236,16 @@ export interface SyncResponse { repriced: number; paused: number; resumed: numbe
 
 export type OrderRow = Order & { listing: { title: string } };
 export interface OrdersResponse extends Paged { items: OrderRow[]; total: number }
-export type OrderDetail = Order & { listing: { title: string }; events: Event[]; messages: Message[]; ledger: LedgerEntry[] };
+export type OrderDetail = Order & {
+  listing: { title: string };
+  events: Event[];
+  messages: Message[];
+  ledger: LedgerEntry[];
+  /** v1.3, manual-supplier orders only. */
+  supplier?: ManualSupplierRef;
+  /** v1.3, manual orders only: most the seller can pay for item + supplier shipping combined and still clear the floor. */
+  maxSupplierCostCents?: Cents;
+};
 
 export interface FloatRow {
   orderId: string;
@@ -253,6 +266,8 @@ export interface DashboardResponse {
     thresholds: { lateShipmentPct: Pct; defectPct: Pct };
   };
   listings: { active: number; paused: number; draft: number; blocked: number; ended: number };
+  /** v1.3. Optional here so an older API still renders. */
+  awaitingSupplier?: { count: number; oldestAt?: string };
   recentEvents: Event[];
 }
 
@@ -263,7 +278,5 @@ export interface LedgerResponse {
 
 export interface ApiError { error: { code: string; message: string; details?: unknown } }
 
-// Auth (CONTRACT.md → Auth)
-export interface AuthUser { id: string; email: string }
-export interface AuthSession { token: string; expiresAt: string; user: AuthUser }
-export interface AuthStatus { hasUsers: boolean }
+export * from './authTypes';
+export * from './manualTypes';

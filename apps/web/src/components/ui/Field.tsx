@@ -1,16 +1,55 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
 interface FieldWrap { label: string; hint?: ReactNode; error?: string; className?: string }
 
-export function TextField({ label, hint, error, className, id, ...rest }: FieldWrap & InputHTMLAttributes<HTMLInputElement>) {
+/** `keepHint` keeps the hint visible beside an error, for rules the person needs to see while fixing the field. */
+export function TextField({ label, hint, error, className, id, keepHint, ...rest }: FieldWrap & { keepHint?: boolean } & InputHTMLAttributes<HTMLInputElement>) {
   const auto = useId();
   const fid = id ?? auto;
+  const showHint = !!hint && (!error || keepHint);
+  const describedBy = [error && `${fid}-err`, showHint && `${fid}-hint`].filter(Boolean).join(' ') || undefined;
   return (
     <div className={className}>
       <label htmlFor={fid} className="label">{label}</label>
-      <input id={fid} className={cn('field', error && 'border-floor')} aria-invalid={!!error} aria-describedby={error ? `${fid}-err` : undefined} {...rest} />
-      {error ? <p id={`${fid}-err`} className="text-[12.5px] text-floor mt-1">{error}</p> : hint ? <p className="text-[12.5px] text-muted mt-1">{hint}</p> : null}
+      <input id={fid} className={cn('field', error && 'border-floor')} aria-invalid={!!error} aria-describedby={describedBy} {...rest} />
+      {error && <p id={`${fid}-err`} className="text-[12.5px] text-floor mt-1">{error}</p>}
+      {showHint && <p id={`${fid}-hint`} className="text-[12.5px] text-muted mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+export function TextAreaField({ label, hint, error, className, id, ...rest }: FieldWrap & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const auto = useId();
+  const fid = id ?? auto;
+  const describedBy = [error && `${fid}-err`, hint && `${fid}-hint`].filter(Boolean).join(' ') || undefined;
+  return (
+    <div className={className}>
+      <label htmlFor={fid} className="label">{label}</label>
+      <textarea id={fid} className={cn('field', error && 'border-floor')} aria-invalid={!!error} aria-describedby={describedBy} {...rest} />
+      {error && <p id={`${fid}-err`} className="text-[12.5px] text-floor mt-1">{error}</p>}
+      {hint && <p id={`${fid}-hint`} className="text-[12.5px] text-muted mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * Dollar box that holds exactly what was typed (the caller turns it into cents with `parseCents`). Unlike `MoneyField`
+ * it does not reformat on every keystroke, so "12.5" can be typed and a blank box stays blank instead of reading $0.00.
+ */
+export function DollarField({ label, hint, error, className, id, ...rest }: FieldWrap & InputHTMLAttributes<HTMLInputElement>) {
+  const auto = useId();
+  const fid = id ?? auto;
+  const describedBy = [error && `${fid}-err`, hint && `${fid}-hint`].filter(Boolean).join(' ') || undefined;
+  return (
+    <div className={className}>
+      <label htmlFor={fid} className="label">{label}</label>
+      <div className="relative">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted text-[14px]" aria-hidden>$</span>
+        <input id={fid} type="text" inputMode="decimal" autoComplete="off" placeholder="0.00" className={cn('field pl-6 num', error && 'border-floor')} aria-invalid={!!error} aria-describedby={describedBy} {...rest} />
+      </div>
+      {error && <p id={`${fid}-err`} className="text-[12.5px] text-floor mt-1">{error}</p>}
+      {hint && <p id={`${fid}-hint`} className="text-[12.5px] text-muted mt-1">{hint}</p>}
     </div>
   );
 }

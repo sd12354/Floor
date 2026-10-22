@@ -7,6 +7,7 @@ import { SetupGate } from '@/components/layout/SetupGate';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { DiscoveryPage } from '@/pages/DiscoveryPage';
+import { ProductsPage } from '@/pages/ProductsPage';
 import { ListingsPage } from '@/pages/ListingsPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
@@ -30,6 +31,7 @@ const routes: RouteObject[] = [
             children: [
               { path: '/', element: <DashboardPage /> },
               { path: '/discovery', element: <DiscoveryPage /> },
+              { path: '/products', element: <ProductsPage /> },
               { path: '/listings', element: <ListingsPage /> },
               { path: '/orders', element: <OrdersPage /> },
               { path: '/orders/:id', element: <OrderDetailPage /> },

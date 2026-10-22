@@ -2,6 +2,8 @@ import { http, HttpResponse, delay } from 'msw';
 import type { AccountPatch, LedgerEntry, SupplierKind } from '@/api/types';
 import * as store from './store';
 import { nextId, state } from './store';
+import { manualHandlers } from './manualHandlers';
+import { orderExtras } from './manualStore';
 
 const B = '/api/v1';
 const err = (status: number, code: string, message: string) => HttpResponse.json({ error: { code, message } }, { status });
@@ -56,7 +58,10 @@ export const handlers = [
   http.post(`${B}/suppliers`, async ({ request }) => {
     await latency();
     const { supplier } = (await request.json()) as { supplier: SupplierKind };
-    if (supplier !== 'mock') return err(422, 'SUPPLIER_NOT_AVAILABLE', 'Only the mock supplier is available in mock mode');
+    // The manual supplier is allowed in every mode; the mock one only in mock mode.
+    if (supplier !== 'mock' && supplier !== 'manual') return err(422, 'SUPPLIER_NOT_AVAILABLE', 'Only the mock and manual suppliers are available in mock mode');
+    const existing = supplier === 'manual' ? state.account.supplierConnections.find((c) => c.supplier === 'manual') : undefined;
+    if (existing) return HttpResponse.json(existing, { status: 201 });
     return HttpResponse.json(store.addSupplier(supplier), { status: 201 });
   }),
   http.delete(`${B}/suppliers/:id`, async ({ params }) => {
@@ -73,7 +78,7 @@ export const handlers = [
     const minMargin = parseFloat(url.searchParams.get('minMarginPct') ?? '');
     const page = parseInt(url.searchParams.get('page') ?? '1', 10);
     const pageSize = parseInt(url.searchParams.get('pageSize') ?? '50', 10);
-    let items = store.products.map(store.toDiscoveryItem);
+    let items = store.allProducts().map(store.toDiscoveryItem);
     if (q) items = items.filter((i) => i.title.toLowerCase().includes(q) || i.categoryHint?.toLowerCase().includes(q) || i.supplierSku.toLowerCase().includes(q));
     if (!Number.isNaN(minMargin)) items = items.filter((i) => i.projectedMarginPct >= minMargin);
     const total = items.length;
@@ -141,6 +146,7 @@ export const handlers = [
     const sortAt = <T extends { at: string }>(xs: T[]) => [...xs].sort((a, b) => a.at.localeCompare(b.at));
     return HttpResponse.json({
       ...o,
+      ...orderExtras(o),
       listing: { title: state.listings.find((l) => l.id === o.listingId)?.title ?? 'Unknown listing' },
       events: sortAt(state.events.filter((e) => e.orderId === o.id)),
       messages: sortAt(state.messages.filter((m) => m.orderId === o.id)),
@@ -159,6 +165,8 @@ export const handlers = [
     try { return HttpResponse.json(store.simulate(body), { status: 201 }); }
     catch (e) { const x = e as { status?: number; code?: string; message: string }; return err(x.status ?? 500, x.code ?? 'ERROR', x.message); }
   }),
+
+  ...manualHandlers,
 
   // Dashboard & ledger
   http.get(`${B}/dashboard`, async () => { await latency(); return HttpResponse.json(store.dashboard()); }),

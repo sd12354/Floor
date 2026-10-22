@@ -4,11 +4,14 @@ import { parse } from '../plugins/validate.js';
 import { serializeOrder } from '../serialize.js';
 import { markManualDelivered, quoteSupplier, recordManualTracking, recordSupplierOrder } from '../services/manualFulfillment.js';
 
-const quoteSchema = z.object({ costCents: z.number().int().min(0), shippingCents: z.number().int().min(0) });
+/** Upper bound for any money field: $1,000,000. Keeps sums and fee maths far inside the safe integer range. */
+const MAX_CENTS = 100_000_000;
+
+const quoteSchema = z.object({ costCents: z.number().int().min(0).max(MAX_CENTS), shippingCents: z.number().int().min(0).max(MAX_CENTS) });
 const supplierOrderSchema = z.object({
   supplierOrderId: z.string().trim().min(1).max(100),
-  costCents: z.number().int().min(1),
-  shippingCents: z.number().int().min(0),
+  costCents: z.number().int().min(1).max(MAX_CENTS),
+  shippingCents: z.number().int().min(0).max(MAX_CENTS),
   confirmBelowFloor: z.boolean().optional(),
 });
 const trackingSchema = z.object({ trackingNumber: z.string().trim().min(1).max(60), carrier: z.string().trim().min(1).max(40) });

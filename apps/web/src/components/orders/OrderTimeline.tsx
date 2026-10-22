@@ -3,9 +3,9 @@ import { formatCents, formatDateTime, formatPct } from '@/lib/money';
 import { eventTypeLabel } from '@/lib/labels';
 import { cn } from '@/lib/cn';
 
-const stages = ['paid', 'checking', 'ordered', 'shipped', 'delivered', 'payout'] as const;
+const stages = ['paid', 'checking', 'awaiting_supplier', 'ordered', 'shipped', 'delivered', 'payout'] as const;
 const stageLabel: Record<(typeof stages)[number], string> = {
-  paid: 'Buyer paid', checking: 'Margin re-checked', ordered: 'Ordered from supplier', shipped: 'Shipped, tracking on eBay', delivered: 'Delivered', payout: 'eBay payout',
+  paid: 'Buyer paid', checking: 'Margin re-checked', awaiting_supplier: 'You order from your supplier', ordered: 'Ordered from supplier', shipped: 'Shipped, tracking on eBay', delivered: 'Delivered', payout: 'eBay payout',
 };
 
 function detailFor(e: OrderDetail['events'][number]): string | null {
@@ -17,6 +17,7 @@ function detailFor(e: OrderDetail['events'][number]): string | null {
       if (typeof p.netMarginPct === 'number') parts.push(`margin ${formatPct(p.netMarginPct)}`);
       return parts.join(', ') || null;
     }
+    case 'order.supplier_ordered': return [typeof p.supplierOrderId === 'string' ? `Supplier ref ${p.supplierOrderId}` : null, p.confirmBelowFloor === true ? 'Recorded below your floor, confirmed by you' : null].filter(Boolean).join('. ') || null;
     case 'order.ordered': return typeof p.supplierOrderId === 'string' ? `Supplier ref ${p.supplierOrderId}` : null;
     case 'order.shipped': return [p.carrier, p.trackingNumber].filter(Boolean).join(' ') || null;
     case 'order.queued': return typeof p.spentTodayCents === 'number' ? `${formatCents(p.spentTodayCents)} of ${formatCents(Number(p.capCents))} cap already spent today` : null;
@@ -33,15 +34,19 @@ function detailFor(e: OrderDetail['events'][number]): string | null {
  */
 export function OrderTimeline({ order }: { order: OrderDetail }) {
   const events = [...order.events].sort((a, b) => a.at.localeCompare(b.at));
-  const doneTypes = new Set(events.map((e) => e.type.replace('order.', '')));
+  // Manual-supplier events stand in for the automatic ones, so the matching stage is not shown as still to come.
+  const alias: Record<string, string> = { supplier_ordered: 'ordered', delivered_manual: 'delivered' };
+  const doneTypes = new Set(events.map((e) => e.type.replace('order.', '')).map((t) => alias[t] ?? t));
+  // The "you order" stage only exists for manual-supplier orders.
+  const manual = order.supplier?.kind === 'manual';
   const terminal = order.status === 'cancelled' || order.status === 'refunded';
-  const remaining = terminal ? [] : stages.filter((s) => !doneTypes.has(s) && !(s === 'payout' && doneTypes.has('payout')));
+  const remaining = terminal ? [] : stages.filter((s) => !doneTypes.has(s) && (manual || s !== 'awaiting_supplier'));
 
   return (
     <ol className="relative ml-2 border-l border-rule">
       {events.map((e) => {
         const bad = e.type === 'order.held' || e.type === 'order.cancelled';
-        const warn = e.type === 'order.queued';
+        const warn = e.type === 'order.queued' || e.type === 'order.awaiting_supplier';
         const detail = detailFor(e);
         return (
           <li key={e.id} className="relative pl-5 pb-4 last:pb-0">

@@ -22,9 +22,11 @@ const httpsUrl = z
 const title = z.string().trim().min(3).max(80);
 const description = z.string().trim().min(1).max(20_000);
 const images = z.array(httpsUrl).min(1).max(12);
-const costCents = z.number().int().min(1);
-const shippingCents = z.number().int().min(0);
-const stock = z.number().int().min(0);
+const MAX_CENTS = 100_000_000;
+const MAX_STOCK = 1_000_000;
+const costCents = z.number().int().min(1).max(MAX_CENTS);
+const shippingCents = z.number().int().min(0).max(MAX_CENTS);
+const stock = z.number().int().min(0).max(MAX_STOCK);
 const handlingDays = z.number().int().min(1).max(60);
 const country = z.string().regex(/^[A-Za-z]{2}$/, 'must be a 2-letter country code').transform((s) => s.toUpperCase());
 const tag = z.string().trim().min(1).max(80);

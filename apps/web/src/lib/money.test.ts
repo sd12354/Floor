@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRounding, computeMargin, formatCents, formatPct, marginState, priceForTarget } from './money';
+import { applyRounding, computeMargin, formatCents, formatPct, marginState, parseCents, priceForTarget } from './money';
 import { defaultFees, defaultRule } from '@/mocks/fixtures/account';
 
 describe('formatCents', () => {
@@ -97,5 +97,21 @@ describe('applyRounding', () => {
     expect(applyRounding(1850, '0.95')).toBe(1895);
     expect(applyRounding(1896, '0.95')).toBe(1995);
     expect(applyRounding(1850, 'none')).toBe(1850);
+  });
+});
+
+describe('parseCents', () => {
+  it('reads typed dollars as exact integer cents', () => {
+    expect(parseCents('19.99')).toBe(1999);
+    expect(parseCents('0.29')).toBe(29);
+    expect(parseCents('8.2')).toBe(820);
+    expect(parseCents('12')).toBe(1200);
+    expect(parseCents('12.')).toBe(1200);
+    expect(parseCents(' $1,234.50 ')).toBe(123450);
+    expect(parseCents('1,250')).toBe(125000);
+    expect(parseCents('1,250.50')).toBe(125050);
+  });
+  it('rejects anything that is not a whole number of cents', () => {
+    for (const bad of ['', 'abc', '-1', '1.234', '1e3', '1.2.3', '$', '.5', '12,50', ',5', '1,25,0', '1,2345', '1250,']) expect(parseCents(bad), bad).toBeNull();
   });
 });

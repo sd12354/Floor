@@ -15,6 +15,7 @@ export function DashboardPage() {
   const { data: account } = useAccount();
   const held = useOrders({ status: 'held' });
   const queued = useOrders({ status: 'queued' });
+  const toOrder = useOrders({ status: 'awaiting_supplier' });
   const blocked = useListings({ status: 'blocked' });
   const paused = useListings({ status: 'paused' });
 
@@ -27,7 +28,13 @@ export function DashboardPage() {
   const spendPct = data ? Math.min(1, data.today.supplierSpendCents / Math.max(1, data.today.spendCapCents)) : 0;
   const todayTone = !data ? 'default' : data.today.profitCents > 0 ? 'good' : data.today.profitCents < 0 ? 'below' : 'default';
 
+  const waiting = data?.awaitingSupplier;
+  // Same clock as a held order: handling time minus 12 hours, after which the buyer is at risk of a late shipment.
+  const lateAfterMs = ((account?.handlingTimeDays ?? 3) * 24 - 12) * 3600_000;
+  const waitingLate = !!waiting?.oldestAt && Date.now() - new Date(waiting.oldestAt).getTime() > lateAfterMs;
+
   const attention = [
+    ...(toOrder.data?.items ?? []).map((o) => ({ key: o.id, to: `/orders/${o.id}`, label: `To order: ${o.listing.title}`, detail: `Buy it from your supplier. ${o.buyerName} paid ${formatDate(o.createdAt, { month: 'short', day: 'numeric', hour: 'numeric' })}.`, tone: 'thin' as const })),
     ...(held.data?.items ?? []).map((o) => ({ key: o.id, to: `/orders/${o.id}`, label: `Held: ${o.listing.title}`, detail: `Fulfilling nets ${formatCents(o.netProfitCents)}. Decide by ${formatDate(o.holdDeadline, { month: 'short', day: 'numeric', hour: 'numeric' })}.`, tone: 'below' as const })),
     ...(queued.data?.items ?? []).map((o) => ({ key: o.id, to: `/orders/${o.id}`, label: `Queued: ${o.listing.title}`, detail: 'Daily spend cap reached. Orders after midnight, or raise the cap in Settings.', tone: 'thin' as const })),
     ...(blocked.data?.items ?? []).map((l) => ({ key: l.id, to: '/listings?status=blocked', label: `Blocked: ${l.title}`, detail: pauseReasonLabel(l.pauseReason, l) ?? 'Compliance check failed', tone: 'below' as const })),
@@ -37,6 +44,19 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader title={account ? `${account.name}` : 'Dashboard'} description={account?.ebayUsername ? `Selling as ${account.ebayUsername} on eBay. Floor ${formatPct(account.pricingRule.floorPct, 0)}, target ${formatPct(account.pricingRule.targetPct, 0)}.` : undefined} />
+
+      {waiting && waiting.count > 0 && (
+        <Link
+          to="/orders?status=awaiting_supplier"
+          className={cn('flex items-start gap-3 rounded-lg border px-4 py-3 mb-3 text-[14px]', waitingLate ? 'border-floor/50 bg-floor/8' : 'border-amber/40 bg-amber/10')}
+        >
+          <span className="flex-1 min-w-0">
+            <strong>{waiting.count} {waiting.count === 1 ? 'order is' : 'orders are'} waiting for you to order from your supplier.</strong>{' '}
+            {waiting.oldestAt && <span className={waitingLate ? 'text-floor font-medium' : 'text-muted'}>{waitingLate ? 'Getting late: the oldest has waited ' : 'The oldest has waited '}{relativeTime(waiting.oldestAt).replace(/ ago$/, '')}.</span>}
+          </span>
+          <span className="shrink-0 inline-flex items-center gap-1 text-accent">Open <ArrowRight className="h-4 w-4" aria-hidden /></span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {isPending || !data ? (
