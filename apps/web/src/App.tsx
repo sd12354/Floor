@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { AuthGate } from '@/components/layout/AuthGate';
 import { SetupGate } from '@/components/layout/SetupGate';
 import { LoginPage } from '@/pages/LoginPage';
+import { WelcomePage } from '@/pages/WelcomePage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { DiscoveryPage } from '@/pages/DiscoveryPage';
 import { ProductsPage } from '@/pages/ProductsPage';
@@ -19,6 +20,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 
 const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
+  { path: '/welcome', element: <WelcomePage /> },
   {
     element: <AuthGate />,
     children: [

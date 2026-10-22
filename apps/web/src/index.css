@@ -54,7 +54,7 @@
 
 @layer base {
   html {
-    font-family: 'Instrument Sans', system-ui, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
     font-feature-settings: 'tnum' 1, 'ss01' 1;
     -webkit-font-smoothing: antialiased;
   }
@@ -62,7 +62,7 @@
     @apply bg-paper text-ink text-[14px] leading-[1.45];
   }
   h1, h2, h3 {
-    @apply font-display font-normal tracking-[-0.01em];
+    @apply font-display font-medium tracking-[-0.02em];
   }
   *:focus-visible {
     outline: 2px solid rgb(var(--accent));

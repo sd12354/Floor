@@ -4,12 +4,13 @@ import { cleanup } from '@testing-library/react';
 import { server } from '@/mocks/server';
 import { setToken } from '@/lib/authToken';
 import { resetState } from '@/mocks/store';
+import { markIntroSeen } from '@/lib/intro';
 
 expect.extend(matchers);
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 // Tests start signed in; auth tests call setToken(null) themselves.
-beforeEach(() => setToken('test-token'));
+beforeEach(() => { setToken('test-token'); markIntroSeen(); });
 afterEach(() => {
   cleanup();
   server.resetHandlers();

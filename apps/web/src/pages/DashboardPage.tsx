@@ -4,6 +4,7 @@ import { useAccount, useDashboard, useListings, useOrders } from '@/api/hooks';
 import { errorMessage } from '@/api/client';
 import { Card, Stat, StatSkeleton, ErrorState, Badge, EmptyState } from '@/components/ui';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { LogoMark } from '@/components/layout/LogoMark';
 import { formatCents, formatDate, formatPct, relativeTime } from '@/lib/money';
 import { eventTypeLabel, pauseReasonLabel } from '@/lib/labels';
 import { cn } from '@/lib/cn';
@@ -43,7 +44,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <PageHeader title={account ? `${account.name}` : 'Dashboard'} description={account?.ebayUsername ? `Selling as ${account.ebayUsername} on eBay. Floor ${formatPct(account.pricingRule.floorPct, 0)}, target ${formatPct(account.pricingRule.targetPct, 0)}.` : undefined} />
+      <PageHeader icon={<LogoMark size={46} animated className="shrink-0 rounded-lg shadow-sm" />} title={account ? `${account.name}` : 'Dashboard'} description={account?.ebayUsername ? `Selling as ${account.ebayUsername} on eBay. Floor ${formatPct(account.pricingRule.floorPct, 0)}, target ${formatPct(account.pricingRule.targetPct, 0)}.` : undefined} />
 
       {waiting && waiting.count > 0 && (
         <Link

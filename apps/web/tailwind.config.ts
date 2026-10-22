@@ -22,11 +22,16 @@ export default {
         green: v('green'),
       },
       fontFamily: {
-        sans: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
-        display: ['"Young Serif"', 'Georgia', 'serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        display: ['Unbounded', 'Manrope', 'system-ui', 'sans-serif'],
       },
       borderRadius: { DEFAULT: '6px', lg: '10px' },
       maxWidth: { page: '1200px' },
+      keyframes: {
+        ladderIn: { from: { opacity: '0', transform: 'translateY(18px)' }, to: { opacity: '1', transform: 'none' } },
+        marquee: { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(-50%)' } },
+        floatY: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } },
+      },
     },
   },
   plugins: [],

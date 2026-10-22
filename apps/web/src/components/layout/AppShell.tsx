@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { LayoutGrid, Search, Tags, Package, Boxes, BookOpen, MessageSquare, Settings, LogOut, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { useDashboard, useMe, useSignOut } from '@/api/hooks';
@@ -38,6 +38,7 @@ function AccountPeek() {
     <div className="px-3 py-3 border-t border-rule">
       <div className="text-[12px] text-muted">Signed in as</div>
       <div className="text-[13px] truncate" title={user?.email}>{user?.email}</div>
+      <Link to="/welcome" className="mt-1.5 block text-[13px] text-muted hover:text-ink">Replay intro</Link>
       <button type="button" onClick={() => signOut.mutate()} className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink">
         <LogOut className="h-3.5 w-3.5" aria-hidden /> Sign out
       </button>
