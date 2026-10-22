@@ -97,6 +97,16 @@ interface ComplianceResult { ok: true } | { ok: false; code: 'SUPPLIER_NOT_ALLOW
 - `GET  /messages?orderId=&unansweredOnly=` → Message[]
 - `POST /messages/:id/reply` body `{ body }`
 
+### Auth (v1.2)
+Floor is single-seller. Every `/api/v1` route needs `Authorization: Bearer <session token>` except the three public routes below; `/health` is also open.
+- `GET /auth/status` (public) → `{ hasUsers: boolean }`. The web app shows "Create your account" when false, "Sign in" when true.
+- `POST /auth/signup` (public) body `{ email, password }` (password 8 to 128 chars) → `201 { token, expiresAt, user: { id, email } }`. Works only while no user exists; afterwards `403 SIGNUP_CLOSED`.
+- `POST /auth/login` (public) body `{ email, password }` → `{ token, expiresAt, user }`. Email is trimmed and lower-cased. Wrong email or password → `401 INVALID_CREDENTIALS` (same message for both). 5 failures per email in 15 minutes → `429 TOO_MANY_ATTEMPTS`.
+- `GET /auth/me` → `{ user }`. `POST /auth/logout` → 204, invalidates that token.
+- Missing, unknown or expired token → `401 UNAUTHENTICATED`.
+- Passwords are stored as scrypt hashes. The session token is 32 random bytes; only its SHA-256 is stored. Sessions last 30 days.
+- `POST /webhooks/ebay` also requires a session token for now. Before real eBay notifications are enabled it needs its own signature check instead.
+
 ## Pipeline semantics (backend must implement exactly)
 
 1. `paid` → `checking`: re-fetch supplier price/stock; compute margin with account fees.

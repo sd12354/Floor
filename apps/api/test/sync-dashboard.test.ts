@@ -120,7 +120,7 @@ describe('dashboard & ledger', () => {
     expect(ledger.body.totals.profitCents).toBe(a.body.netProfitCents + b.body.netProfitCents);
     expect(ledger.body.entries.filter((e) => e.kind === 'payout')).toHaveLength(2);
 
-    const csv = await t.app.inject({ method: 'GET', url: '/api/v1/ledger/export.csv', headers: { 'x-account-id': 'acc_demo' } });
+    const csv = await t.app.inject({ method: 'GET', url: '/api/v1/ledger/export.csv', headers: { 'x-account-id': 'acc_demo', authorization: `Bearer ${t.seller.token}` } });
     expect(csv.statusCode).toBe(200);
     expect(csv.headers['content-type']).toContain('text/csv');
     expect(csv.body.split('\n')[0]).toBe('id,at,kind,orderId,amountCents,amountUsd');

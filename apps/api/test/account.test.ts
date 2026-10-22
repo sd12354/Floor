@@ -19,7 +19,7 @@ describe('account & setup', () => {
   });
 
   it('defaults to acc_demo without the header and 404s for unknown accounts', async () => {
-    const res = await t.app.inject({ method: 'GET', url: '/api/v1/account' });
+    const res = await t.app.inject({ method: 'GET', url: '/api/v1/account', headers: { authorization: `Bearer ${t.seller.token}` } });
     expect(res.statusCode).toBe(200);
     const bad = await t.api<{ error: { code: string } }>('GET', '/account', undefined, { 'x-account-id': 'acc_nope' });
     expect(bad.status).toBe(404);
@@ -78,10 +78,10 @@ describe('account & setup', () => {
 
 describe('error shape', () => {
   it('maps malformed JSON bodies to the contract BAD_REQUEST code', async () => {
-    const res = await t.app.inject({ method: 'POST', url: '/api/v1/listings', headers: { 'x-account-id': 'acc_demo', 'content-type': 'application/json' }, payload: 'not json' });
+    const res = await t.app.inject({ method: 'POST', url: '/api/v1/listings', headers: { 'x-account-id': 'acc_demo', 'content-type': 'application/json', authorization: `Bearer ${t.seller.token}` }, payload: 'not json' });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } });
-    const empty = await t.app.inject({ method: 'POST', url: '/api/v1/listings/sync', headers: { 'x-account-id': 'acc_demo', 'content-type': 'application/json' } });
+    const empty = await t.app.inject({ method: 'POST', url: '/api/v1/listings/sync', headers: { 'x-account-id': 'acc_demo', 'content-type': 'application/json', authorization: `Bearer ${t.seller.token}` } });
     expect(empty.statusCode).toBe(400);
     expect(empty.json().error.code).toBe('BAD_REQUEST');
   });

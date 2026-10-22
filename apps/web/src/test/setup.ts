@@ -1,12 +1,15 @@
-import { afterAll, afterEach, beforeAll, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect } from 'vitest';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import { cleanup } from '@testing-library/react';
 import { server } from '@/mocks/server';
+import { setToken } from '@/lib/authToken';
 import { resetState } from '@/mocks/store';
 
 expect.extend(matchers);
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+// Tests start signed in; auth tests call setToken(null) themselves.
+beforeEach(() => setToken('test-token'));
 afterEach(() => {
   cleanup();
   server.resetHandlers();

@@ -9,10 +9,11 @@ Floor lists supplier products on eBay, keeps price and stock in sync around the 
 ```bash
 pnpm install                        # also builds @floor/core and generates the Prisma client
 pnpm --filter @floor/api db:setup   # creates SQLite dev DB and seeds the demo account
+                                    # (after pulling schema changes, run db:generate and db:push instead)
 pnpm dev                            # API on :4000, web on :5173
 ```
 
-Open http://localhost:5173. Connect the (mock) eBay account and mock supplier, approve a few products from Discovery, publish, then use **Simulate sale** on a listing to watch an order run through the pipeline: margin re-check → supplier order → tracking → payout. Add a supplier price drift (try 60%) to the simulation: if the order's margin falls below your floor, Floor holds it for your decision instead of fulfilling. Floor never fulfils below your margin floor on its own; you can still approve a held order by hand.
+Open http://localhost:5173. The first time, create your seller account (email and a password of 8+ characters); after that, sign in with it. Floor has one seller account and signup closes once it exists. Then connect the (mock) eBay account and mock supplier, approve a few products from Discovery, publish, then use **Simulate sale** on a listing to watch an order run through the pipeline: margin re-check → supplier order → tracking → payout. Add a supplier price drift (try 60%) to the simulation: if the order's margin falls below your floor, Floor holds it for your decision instead of fulfilling. Floor never fulfils below your margin floor on its own; you can still approve a held order by hand.
 
 Notes for restricted networks: `prisma generate` is run through `apps/api/scripts/prisma-generate.mjs`, which points
 `PRISMA_SCHEMA_ENGINE_BINARY` at a local no-op so nothing is downloaded from binaries.prisma.sh; schema push uses the

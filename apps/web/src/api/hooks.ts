@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { setToken } from '@/lib/authToken';
 import { api } from './client';
 import type {
   Account,
   AccountPatch,
+  AuthSession,
+  AuthStatus,
+  AuthUser,
   CreateListingsResponse,
   DashboardResponse,
   DiscoveryItem,
@@ -21,6 +25,8 @@ import type {
 } from './types';
 
 export const keys = {
+  authStatus: ['auth', 'status'] as const,
+  me: ['auth', 'me'] as const,
   account: ['account'] as const,
   dashboard: ['dashboard'] as const,
   discovery: (q: object) => ['discovery', q] as const,
@@ -158,5 +164,33 @@ export function useReplyMessage() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: string }) => api.post<Message>(`/messages/${id}/reply`, { body }),
     onSuccess: () => inv('messages', 'order'),
+  });
+}
+
+// Auth
+export const useAuthStatus = () => useQuery({ queryKey: keys.authStatus, queryFn: () => api.get<AuthStatus>('/auth/status'), retry: false, staleTime: 0 });
+export const useMe = (enabled = true) =>
+  useQuery({ queryKey: keys.me, queryFn: async () => (await api.get<{ user: AuthUser }>('/auth/me')).user, enabled, retry: false });
+
+/** Signs in (or creates the first account) and stores the token. Clears cached data from any previous session. */
+export function useSignIn(mode: 'signin' | 'signup') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { email: string; password: string }) => api.post<AuthSession>(mode === 'signup' ? '/auth/signup' : '/auth/login', body),
+    onSuccess: (session) => {
+      qc.clear();
+      setToken(session.token);
+    },
+  });
+}
+
+export function useSignOut() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<void>('/auth/logout').catch(() => undefined),
+    onSettled: () => {
+      setToken(null);
+      qc.clear();
+    },
   });
 }

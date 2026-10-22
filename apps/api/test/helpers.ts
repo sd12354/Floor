@@ -7,14 +7,20 @@ import { loadConfig } from '../src/config.js';
 import { createDb, type Db } from '../src/db/client.js';
 import { pushSchema } from '../src/db/push.js';
 import { seedDemoAccount } from '../src/seed.js';
+import { createSession, createUser } from '../src/services/auth.js';
+import { hashPassword } from '../src/services/password.js';
 import { buildServer } from '../src/server.js';
 
 export interface TestApp {
   app: FastifyInstance;
   db: Db;
   connectors: Connectors;
-  /** JSON request helper against /api/v1 with the demo account header. */
+  /** Credentials of the signed-in test seller that `api` uses. */
+  seller: { email: string; password: string; token: string };
+  /** JSON request helper against /api/v1 with the demo account header, signed in as the test seller. */
   api<T = unknown>(method: InjectOptions['method'], url: string, body?: unknown, headers?: Record<string, string>): Promise<{ status: number; body: T }>;
+  /** Same as `api` but with no Authorization header, for auth tests. */
+  anon<T = unknown>(method: InjectOptions['method'], url: string, body?: unknown, headers?: Record<string, string>): Promise<{ status: number; body: T }>;
   close(): Promise<void>;
 }
 
@@ -30,27 +36,35 @@ export async function createTestApp(opts: { dailySpendCapCents?: number; trackin
   const app = await buildServer({ config, db, connectors });
   await app.ready();
 
+  const password = 'test-password-123';
+  const user = await createUser(db, 'seller@floor.test', await hashPassword(password));
+  const { token } = await createSession(db, user.id);
+
+  const call = async (method: InjectOptions['method'], url: string, body: unknown, headers: Record<string, string>) => {
+    const res = await app.inject({
+      method,
+      url: `/api/v1${url}`,
+      headers: { 'x-account-id': 'acc_demo', ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...headers },
+      ...(body !== undefined ? { payload: JSON.stringify(body) } : {}),
+    });
+    const text = res.body;
+    let parsed: unknown = text;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON (csv)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, caller narrows
+    return { status: res.statusCode, body: parsed as any };
+  };
+
   return {
     app,
     db,
     connectors,
-    async api(method, url, body, headers = {}) {
-      const res = await app.inject({
-        method,
-        url: `/api/v1${url}`,
-        headers: { 'x-account-id': 'acc_demo', ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...headers },
-        ...(body !== undefined ? { payload: JSON.stringify(body) } : {}),
-      });
-      const text = res.body;
-      let parsed: unknown = text;
-      try {
-        parsed = text ? JSON.parse(text) : null;
-      } catch {
-        // non-JSON (csv)
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, caller narrows
-      return { status: res.statusCode, body: parsed as any };
-    },
+    seller: { email: 'seller@floor.test', password, token },
+    api: (method, url, body, headers = {}) => call(method, url, body, { authorization: `Bearer ${token}`, ...headers }),
+    anon: (method, url, body, headers = {}) => call(method, url, body, headers),
     async close() {
       await app.close();
       rmSync(dir, { recursive: true, force: true });

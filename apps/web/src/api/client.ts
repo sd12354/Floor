@@ -1,3 +1,4 @@
+import { clearToken, getToken } from '@/lib/authToken';
 import type { ApiError } from './types';
 
 export const API_BASE = '/api/v1';
@@ -30,10 +31,12 @@ function withQuery(path: string, query?: Query): string {
 }
 
 async function request<T>(method: string, path: string, opts: { body?: unknown; query?: Query } = {}): Promise<T> {
+  const token = getToken();
   const res = await fetch(withQuery(path, opts.query), {
     method,
     headers: {
       'X-Account-Id': ACCOUNT_ID,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       Accept: 'application/json',
       ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
@@ -54,6 +57,9 @@ async function request<T>(method: string, path: string, opts: { body?: unknown; 
     } catch {
       // non-JSON error body; keep status text
     }
+    // An expired or revoked session: drop the token so the app returns to the sign-in page.
+    // Wrong-password responses from the sign-in form itself are not a lost session.
+    if (res.status === 401 && code === 'UNAUTHENTICATED') clearToken();
     throw new FloorApiError(res.status, code, message, details);
   }
   if (res.status === 204) return undefined as T;

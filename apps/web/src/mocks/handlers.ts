@@ -10,7 +10,32 @@ const latency = () => delay(import.meta.env.MODE === 'test' ? 0 : 180);
 const toCsv = (rows: LedgerEntry[]) =>
   ['id,at,kind,orderId,amountCents,amountUsd', ...rows.map((e) => [e.id, e.at, e.kind, e.orderId ?? '', e.amountCents, (e.amountCents / 100).toFixed(2)].join(','))].join('\n');
 
+const bearer = (req: Request) => /^Bearer\s+\S+$/.test(req.headers.get('authorization') ?? '');
+const mockUser = () => ({ id: 'usr_mock', email: state.auth.email });
+
 export const handlers = [
+  // Auth (mock seller: first run creates the account, then sign in with it)
+  http.get(`${B}/auth/status`, async () => { await latency(); return HttpResponse.json({ hasUsers: state.auth.hasUsers }); }),
+  http.post(`${B}/auth/signup`, async ({ request }) => {
+    await latency();
+    if (state.auth.hasUsers) return err(403, 'SIGNUP_CLOSED', 'An account already exists. Sign in instead.');
+    const { email, password } = (await request.json()) as { email: string; password: string };
+    if (password.length < 8) return err(400, 'VALIDATION', 'Use at least 8 characters');
+    state.auth = { hasUsers: true, email: email.trim().toLowerCase(), password };
+    return HttpResponse.json({ token: 'mock-token', expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(), user: mockUser() }, { status: 201 });
+  }),
+  http.post(`${B}/auth/login`, async ({ request }) => {
+    await latency();
+    const { email, password } = (await request.json()) as { email: string; password: string };
+    if (email.trim().toLowerCase() !== state.auth.email || password !== state.auth.password) return err(401, 'INVALID_CREDENTIALS', 'Wrong email or password');
+    return HttpResponse.json({ token: 'mock-token', expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(), user: mockUser() });
+  }),
+  http.get(`${B}/auth/me`, async ({ request }) => {
+    await latency();
+    return bearer(request) ? HttpResponse.json({ user: mockUser() }) : err(401, 'UNAUTHENTICATED', 'Sign in to continue');
+  }),
+  http.post(`${B}/auth/logout`, async () => new HttpResponse(null, { status: 204 })),
+
   // Account & setup
   http.get(`${B}/account`, async () => { await latency(); return HttpResponse.json(state.account); }),
   http.patch(`${B}/account`, async ({ request }) => {

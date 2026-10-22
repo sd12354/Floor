@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutGrid, Search, Tags, Package, BookOpen, MessageSquare, Settings, type LucideIcon } from 'lucide-react';
+import { LayoutGrid, Search, Tags, Package, BookOpen, MessageSquare, Settings, LogOut, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { useDashboard } from '@/api/hooks';
+import { useDashboard, useMe, useSignOut } from '@/api/hooks';
 import { formatCents } from '@/lib/money';
 import { Wordmark } from './Wordmark';
 
@@ -29,7 +29,22 @@ function FloatPeek() {
   );
 }
 
+function AccountPeek() {
+  const { data: user } = useMe();
+  const signOut = useSignOut();
+  return (
+    <div className="px-3 py-3 border-t border-rule">
+      <div className="text-[12px] text-muted">Signed in as</div>
+      <div className="text-[13px] truncate" title={user?.email}>{user?.email}</div>
+      <button type="button" onClick={() => signOut.mutate()} className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink">
+        <LogOut className="h-3.5 w-3.5" aria-hidden /> Sign out
+      </button>
+    </div>
+  );
+}
+
 export function AppShell() {
+  const signOut = useSignOut();
   return (
     <div className="min-h-dvh md:flex">
       <aside className="hidden md:flex md:flex-col md:w-[208px] md:shrink-0 md:sticky md:top-0 md:h-dvh bg-surface border-r border-rule">
@@ -55,14 +70,20 @@ export function AppShell() {
           ))}
         </nav>
         <FloatPeek />
+        <AccountPeek />
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="md:hidden flex items-center justify-between px-4 h-12 bg-surface border-b border-rule sticky top-0 z-30">
           <Wordmark />
-          <NavLink to="/messages" className="text-muted text-[13px] flex items-center gap-1.5">
-            <MessageSquare className="h-4 w-4" aria-hidden /> Messages
-          </NavLink>
+          <div className="flex items-center gap-4">
+            <NavLink to="/messages" className="text-muted text-[13px] flex items-center gap-1.5">
+              <MessageSquare className="h-4 w-4" aria-hidden /> Messages
+            </NavLink>
+            <button type="button" onClick={() => signOut.mutate()} className="text-muted text-[13px] flex items-center gap-1.5" aria-label="Sign out">
+              <LogOut className="h-4 w-4" aria-hidden /> Sign out
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 w-full max-w-page px-4 md:px-6 py-4 md:py-6 pb-[calc(env(safe-area-inset-bottom)+76px)] md:pb-8">

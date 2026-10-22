@@ -20,6 +20,8 @@ export interface MockState {
   events: Event[];
   messages: Message[];
   ledger: LedgerEntry[];
+  /** Mock seller login. `hasUsers: false` shows the first-run "create your account" form. */
+  auth: { hasUsers: boolean; email: string; password: string };
 }
 
 export let state: MockState = makeState();
@@ -31,7 +33,7 @@ export function makeState(opts: { fresh?: boolean } = {}): MockState {
     const p = productById(l.productId);
     if (p) l.floorPriceCents = priceForTarget(p.costCents, p.shippingCents, account.fees, { ...account.pricingRule, targetPct: account.pricingRule.floorPct });
   }
-  return { account, listings, orders: clone(seedOrders), events: clone(seedEvents), messages: clone(seedMessages), ledger: clone(seedLedger) };
+  return { account, listings, orders: clone(seedOrders), events: clone(seedEvents), messages: clone(seedMessages), ledger: clone(seedLedger), auth: { hasUsers: true, email: 'seller@floor.test', password: 'floor-demo-pass' } };
 }
 
 export function resetState(opts: { fresh?: boolean } = {}) {

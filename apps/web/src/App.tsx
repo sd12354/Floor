@@ -2,7 +2,9 @@ import { createBrowserRouter, createMemoryRouter, RouterProvider, type RouteObje
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/components/ui';
 import { AppShell } from '@/components/layout/AppShell';
+import { AuthGate } from '@/components/layout/AuthGate';
 import { SetupGate } from '@/components/layout/SetupGate';
+import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { DiscoveryPage } from '@/pages/DiscoveryPage';
 import { ListingsPage } from '@/pages/ListingsPage';
@@ -15,22 +17,28 @@ import { OnboardingPage } from '@/pages/OnboardingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 const routes: RouteObject[] = [
+  { path: '/login', element: <LoginPage /> },
   {
-    element: <SetupGate />,
+    element: <AuthGate />,
     children: [
-      { path: '/onboarding', element: <OnboardingPage /> },
       {
-        element: <AppShell />,
+        element: <SetupGate />,
         children: [
-          { path: '/', element: <DashboardPage /> },
-          { path: '/discovery', element: <DiscoveryPage /> },
-          { path: '/listings', element: <ListingsPage /> },
-          { path: '/orders', element: <OrdersPage /> },
-          { path: '/orders/:id', element: <OrderDetailPage /> },
-          { path: '/ledger', element: <LedgerPage /> },
-          { path: '/messages', element: <MessagesPage /> },
-          { path: '/settings', element: <SettingsPage /> },
-          { path: '*', element: <NotFoundPage /> },
+          { path: '/onboarding', element: <OnboardingPage /> },
+          {
+            element: <AppShell />,
+            children: [
+              { path: '/', element: <DashboardPage /> },
+              { path: '/discovery', element: <DiscoveryPage /> },
+              { path: '/listings', element: <ListingsPage /> },
+              { path: '/orders', element: <OrdersPage /> },
+              { path: '/orders/:id', element: <OrderDetailPage /> },
+              { path: '/ledger', element: <LedgerPage /> },
+              { path: '/messages', element: <MessagesPage /> },
+              { path: '/settings', element: <SettingsPage /> },
+              { path: '*', element: <NotFoundPage /> },
+            ],
+          },
         ],
       },
     ],

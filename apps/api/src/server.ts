@@ -4,9 +4,11 @@ import { loadConfig, type AppConfig } from './config.js';
 import { buildConnectors, type Connectors } from './connectors.js';
 import { createDb, type Db } from './db/client.js';
 import { accountPlugin } from './plugins/account.js';
+import { authGuard } from './plugins/auth.js';
 import { errorPlugin } from './plugins/errors.js';
 import { prismaPlugin } from './plugins/prisma.js';
 import { accountRoutes } from './routes/account.js';
+import { authRoutes } from './routes/auth.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { discoveryRoutes } from './routes/discovery.js';
 import { ledgerRoutes } from './routes/ledger.js';
@@ -59,6 +61,9 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
 
   await app.register(
     async (api) => {
+      // Everything under /api/v1 needs a session token except the routes marked `public` in routes/auth.ts.
+      await api.register(authGuard);
+      await api.register(authRoutes);
       await api.register(accountRoutes);
       await api.register(supplierRoutes);
       await api.register(discoveryRoutes);

@@ -181,3 +181,26 @@ model Message {
 
   @@index([accountId, at])
 }
+
+// Seller login. Floor is single-seller: the first account created owns the instance.
+model User {
+  id           String   @id
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  sessions Session[]
+}
+
+// `id` is the SHA-256 of the bearer token; the raw token is shown to the client once and never stored.
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
