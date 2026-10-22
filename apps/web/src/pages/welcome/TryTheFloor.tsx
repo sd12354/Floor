@@ -48,7 +48,11 @@ export function TryTheFloor() {
             style={{ left: pos(margin) }}
           />
         </div>
-        <div className="flex justify-between text-[11px] text-white/40 mt-2 num"><span>-20%</span><span>0%</span><span>+40%</span></div>
+        <div className="relative h-4 mt-2 text-[11px] text-white/40 num" aria-hidden>
+          <span className="absolute left-0">-20%</span>
+          <span className="absolute -translate-x-1/2" style={{ left: pos(0) }}>0%</span>
+          <span className="absolute right-0">+40%</span>
+        </div>
 
         <div className={cn('mt-8 rounded-xl border px-6 py-5 transition-colors duration-300', ok ? 'border-[#8AA2FF]/40 bg-[#8AA2FF]/10' : 'border-[#EC695A]/50 bg-[#EC695A]/10')} role="status" aria-live="polite">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
