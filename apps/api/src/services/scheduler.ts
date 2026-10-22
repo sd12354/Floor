@@ -4,6 +4,7 @@ import type { Connectors } from '../connectors.js';
 import type { Db } from '../db/client.js';
 import type { Account } from '../generated/prisma/client.js';
 import { markDeliveriesDue, pollTracking, writePayoutsDue } from './fulfillment.js';
+import { pollEbayOrders } from './ebayIngest.js';
 import { cancelOrder, processOrder } from './orderPipeline.js';
 import { runSync } from './syncService.js';
 
@@ -19,6 +20,8 @@ export interface Jobs {
   cancelExpiredHolds(now?: Date): Promise<void>;
   /** Poll tracking for ordered orders; mock delivery; payouts due. */
   runTrackingPoll(now?: Date): Promise<void>;
+  /** Real mode only: import new paid eBay orders (GET /order since the cursor) and run them through the pipeline. */
+  pollEbayOrders(now?: Date): Promise<void>;
   /** All of the above except sync (the per-tick work). */
   tick(now?: Date): Promise<void>;
 }
@@ -65,6 +68,15 @@ export function buildJobs(db: Db, connectors: Connectors, config: AppConfig, log
         await safe(`payout:${a.id}`, async () => void (await writePayoutsDue(db, a, now)));
       }
     },
+    async pollEbayOrders(now = new Date()) {
+      if (connectors.mode !== 'real') return;
+      for (const a of await accounts()) {
+        await safe(`ebay-orders:${a.id}`, async () => {
+          const r = await pollEbayOrders(db, connectors, a, now);
+          if (r && (r.created > 0 || r.failed > 0)) log?.info({ ...r }, 'eBay order poll');
+        });
+      }
+    },
     async tick(now = new Date()) {
       await jobs.drainQueue(now);
       await jobs.cancelExpiredHolds(now);
@@ -96,13 +108,16 @@ export function startScheduler(jobs: Jobs, config: AppConfig, log?: FastifyBaseL
   };
   const tickTimer = setInterval(guarded('tick', () => jobs.tick()), config.schedulerTickMs);
   const syncTimer = setInterval(guarded('sync', () => jobs.sync()), config.syncIntervalMs);
+  const pollTimer = config.mode === 'real' ? setInterval(guarded('ebay-orders', () => jobs.pollEbayOrders()), config.orderPollIntervalMs) : null;
   tickTimer.unref();
   syncTimer.unref();
+  pollTimer?.unref();
   log?.info({ tickMs: config.schedulerTickMs, syncMs: config.syncIntervalMs }, 'scheduler started');
   return {
     stop() {
       clearInterval(tickTimer);
       clearInterval(syncTimer);
+      if (pollTimer) clearInterval(pollTimer);
     },
   };
 }
