@@ -59,7 +59,7 @@ export const handlers = [
     await latency();
     const body = (await request.json()) as { location?: { country?: string; city?: string }; categoryQuery?: string };
     if (!body.location?.city || body.location.country !== 'US') return err(400, 'VALIDATION', 'Invalid request');
-    if (!state.account.ebayConnected) return err(409, 'EBAY_NOT_CONNECTED', 'Connect your eBay account first (Settings > Connect eBay), then run setup.');
+    if (!state.account.ebayConnected) return err(409, 'EBAY_NOT_CONNECTED', 'Connect your eBay account first (use Connect eBay on the setup screen), then run setup.');
     const q = body.categoryQuery?.trim();
     const categorySuggestions = q ? [{ categoryId: '11700', name: `Home & Garden > ${q} (demo)` }, { categoryId: '26395', name: 'Health & Beauty > Other (demo)' }] : [];
     const lines = ['EBAY_FULFILLMENT_POLICY_ID=6000000001', 'EBAY_PAYMENT_POLICY_ID=6000000002', 'EBAY_RETURN_POLICY_ID=6000000003', 'EBAY_MERCHANT_LOCATION_KEY=floor-default'];

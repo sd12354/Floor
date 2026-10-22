@@ -46,7 +46,7 @@ export function mockSetup(input: EbaySetupInput): SetupResponse {
 export async function runSetup(db: Db, connectors: Connectors, accountId: string, input: EbaySetupInput): Promise<SetupResponse> {
   const ebay = connectors.ebay;
   if (!(ebay instanceof RealEbay) || !(await ebay.hasCredentials())) {
-    throw new AppError(409, 'EBAY_NOT_CONNECTED', 'Connect your eBay account first (Settings > Connect eBay), then run setup.');
+    throw new AppError(409, 'EBAY_NOT_CONNECTED', 'Connect your eBay account first (use Connect eBay on the setup screen), then run setup.');
   }
   try {
     const r = await ebay.setupListingBasics(input);

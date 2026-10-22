@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { RealEbay } from '@floor/core';
 import { z } from 'zod';
 import { badRequest } from '../errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -35,7 +36,11 @@ const patchSchema = z.object({
 export async function accountRoutes(app: FastifyInstance): Promise<void> {
   const load = async (accountId: string) => {
     const account = await app.db.account.findUniqueOrThrow({ where: { id: accountId }, include: { supplierConnections: true } });
-    return serializeAccount(account, { supplierConnections: account.supplierConnections, mode: app.config.mode });
+    // The stored flag can be left over from mock mode (demo_seller). In real mode "connected" means we hold an eBay token.
+    const ebay = app.connectors.ebay;
+    const stale = app.config.mode === 'real' && account.ebayConnected && ebay instanceof RealEbay && !(await ebay.hasCredentials());
+    const shown = stale ? { ...account, ebayConnected: false, ebayUsername: null } : account;
+    return serializeAccount(shown, { supplierConnections: account.supplierConnections, mode: app.config.mode });
   };
 
   app.get('/account', async (req) => {
