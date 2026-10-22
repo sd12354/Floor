@@ -52,7 +52,7 @@ export function suggestReply(kind: InboundKind, order: Order, listingTitle: stri
       }
       return `Hi ${name}, your "${listingTitle}" is being prepared for shipment and tracking will be posted to your order within our handling window. Thanks for your patience!`;
     case 'cancel':
-      return ['paid', 'checking', 'held', 'queued'].includes(order.status)
+      return ['paid', 'checking', 'held', 'queued', 'awaiting_supplier'].includes(order.status)
         ? `Hi ${name}, no problem: we've cancelled your order for "${listingTitle}" and a full refund is on its way.`
         : `Hi ${name}, your "${listingTitle}" has already shipped so we can't cancel it, but you're welcome to return it once it arrives for a full refund.`;
     case 'return':

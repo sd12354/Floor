@@ -52,7 +52,7 @@ export type ComplianceCode =
 
 export type ComplianceResult = { ok: true } | { ok: false; code: ComplianceCode; detail: string };
 
-export type Supplier = 'mock' | 'cjdropshipping' | 'spocket';
+export type Supplier = 'mock' | 'cjdropshipping' | 'spocket' | 'manual';
 
 export interface Address {
   name?: string;
@@ -69,6 +69,7 @@ export type OrderStatus =
   | 'checking'
   | 'held'
   | 'queued'
+  | 'awaiting_supplier'
   | 'ordered'
   | 'shipped'
   | 'delivered'

@@ -21,8 +21,8 @@ const ok: ComplianceInput = {
 };
 
 describe('allowlist', () => {
-  it('contains exactly the three suppliers', () => {
-    expect([...SUPPLIER_ALLOWLIST]).toEqual(['mock', 'cjdropshipping', 'spocket']);
+  it('contains exactly the four suppliers', () => {
+    expect([...SUPPLIER_ALLOWLIST]).toEqual(['mock', 'cjdropshipping', 'spocket', 'manual']);
     expect(isAllowedSupplier('amazon')).toBe(false);
     expect(isAllowedSupplier('spocket')).toBe(true);
   });

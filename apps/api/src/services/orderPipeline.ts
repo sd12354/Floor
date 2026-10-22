@@ -4,6 +4,7 @@ import type { Db } from '../db/client.js';
 import { notFound } from '../errors.js';
 import { Prisma, type Account, type Order } from '../generated/prisma/client.js';
 import { id, startOfUtcDay, writeEvent, writeLedger } from './audit.js';
+import { moveToAwaitingSupplier } from './manualFulfillment.js';
 import { sendOutbound } from './messages.js';
 import { accountPricing, gateProduct, loadBlockedBrands } from './pricingService.js';
 
@@ -59,13 +60,23 @@ function isUniqueViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 }
 
-/** Today's supplier spend (cost + shipping, as positive cents) for the cap check. */
+/**
+ * Supplier spend counted against the daily cap (cost + shipping, positive cents): what was booked in the ledger
+ * today, plus what manual orders currently `awaiting_supplier` have reserved (they enter the ledger, on the day
+ * the seller actually pays, only once the seller records the supplier order).
+ */
 export async function supplierSpendToday(db: Db, accountId: string, now = new Date()): Promise<number> {
   const agg = await db.ledgerEntry.aggregate({
     where: { accountId, kind: { in: ['supplier_cost', 'supplier_shipping'] }, at: { gte: startOfUtcDay(now) } },
     _sum: { amountCents: true },
   });
-  return Math.abs(agg._sum.amountCents ?? 0);
+  return Math.abs(agg._sum.amountCents ?? 0) + (await reservedSupplierSpend(db, accountId));
+}
+
+/** Cost + shipping reserved by manual orders that are waiting for the seller to buy them. */
+export async function reservedSupplierSpend(db: Db, accountId: string): Promise<number> {
+  const agg = await db.order.aggregate({ where: { accountId, status: 'awaiting_supplier' }, _sum: { supplierCostCents: true, supplierShippingCents: true } });
+  return (agg._sum.supplierCostCents ?? 0) + (agg._sum.supplierShippingCents ?? 0);
 }
 
 /**
@@ -176,6 +187,8 @@ export async function placeSupplierOrder(db: Db, connectors: Connectors, account
   const order = await db.order.findFirst({ where: { id: orderId, accountId: account.id }, include: { listing: { include: { product: true } } } });
   if (!order) throw notFound('Order', orderId);
   if (order.supplierOrderId || !['checking', 'queued', 'held'].includes(order.status)) return order;
+  // Manual suppliers have no API: the order waits for the seller to buy it by hand (never calls placeOrder).
+  if (order.listing.product.supplier === 'manual') return moveToAwaitingSupplier(db, account, order, order.listing.product, now);
 
   const supplier = connectors.supplier(order.listing.product.supplier);
   const placed = await supplier.placeOrder({

@@ -15,7 +15,7 @@ export interface Jobs {
    * orders stuck in `checking` (a request died mid-pipeline, e.g. the supplier call threw).
    */
   drainQueue(now?: Date): Promise<void>;
-  /** Cancel held orders past their deadline (no_decision). */
+  /** Cancel held orders past their deadline (no_decision). Never touches awaiting_supplier: those wait for the seller. */
   cancelExpiredHolds(now?: Date): Promise<void>;
   /** Poll tracking for ordered orders; mock delivery; payouts due. */
   runTrackingPoll(now?: Date): Promise<void>;

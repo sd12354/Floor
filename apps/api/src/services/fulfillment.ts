@@ -46,7 +46,8 @@ export async function markDelivered(db: Db, connectors: Connectors, account: Acc
 /** Mock mode: shipped orders are "delivered" after a configurable delay. */
 export async function markDeliveriesDue(db: Db, connectors: Connectors, account: Account, deliveryDelayMs: number, now = new Date()): Promise<{ delivered: number }> {
   const cutoff = new Date(now.getTime() - deliveryDelayMs);
-  const orders = await db.order.findMany({ where: { accountId: account.id, status: 'shipped', updatedAt: { lte: cutoff } }, include: { listing: true } });
+  // Manual orders are never auto-delivered: the seller confirms delivery by hand.
+  const orders = await db.order.findMany({ where: { accountId: account.id, status: 'shipped', updatedAt: { lte: cutoff }, listing: { product: { supplier: { not: 'manual' } } } }, include: { listing: true } });
   for (const o of orders) await markDelivered(db, connectors, account, o, o.listing.title, now);
   return { delivered: orders.length };
 }

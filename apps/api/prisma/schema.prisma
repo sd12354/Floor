@@ -61,6 +61,9 @@ model Product {
   handlingDays     Int      @default(2)
   brand            String?
   categoryHint     String?
+  // Seller's link to the supplier listing (manual products only). Stored and shown, never fetched.
+  supplierUrl      String?
+  createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   listings Listing[]

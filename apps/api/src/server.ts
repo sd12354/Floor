@@ -15,6 +15,8 @@ import { ledgerRoutes } from './routes/ledger.js';
 import { listingRoutes } from './routes/listings.js';
 import { messageRoutes } from './routes/messages.js';
 import { orderRoutes } from './routes/orders.js';
+import { manualOrderRoutes } from './routes/manualOrders.js';
+import { manualProductRoutes } from './routes/manualProducts.js';
 import { supplierRoutes } from './routes/suppliers.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { buildJobs, startScheduler, type Jobs } from './services/scheduler.js';
@@ -37,7 +39,8 @@ export interface BuildOptions {
 export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInstance> {
   const config = loadConfig(opts.config);
   const db = opts.db ?? createDb(config.databaseUrl);
-  const connectors = opts.connectors ?? buildConnectors(config);
+  const connectors = opts.connectors ?? buildConnectors(config, db);
+  connectors.bindDb(db);
 
   const app = Fastify({
     logger:
@@ -69,6 +72,8 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
       await api.register(discoveryRoutes);
       await api.register(listingRoutes);
       await api.register(orderRoutes);
+      await api.register(manualOrderRoutes);
+      await api.register(manualProductRoutes);
       await api.register(webhookRoutes);
       await api.register(dashboardRoutes);
       await api.register(ledgerRoutes);

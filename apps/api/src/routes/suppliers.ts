@@ -1,4 +1,4 @@
-import { isAllowedSupplier, NotConfiguredError, SUPPLIER_ALLOWLIST } from '@floor/core';
+import { isAllowedSupplier, NotConfiguredError, SUPPLIER_ALLOWLIST, type Supplier } from '@floor/core';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { notFound, unprocessable } from '../errors.js';
@@ -12,6 +12,13 @@ const createSchema = z.object({
   credentials: z.record(z.string(), z.string()).optional(),
 });
 
+const SUPPLIER_LABELS: Record<Supplier, string> = {
+  mock: 'Mock supplier (demo)',
+  cjdropshipping: 'CJdropshipping',
+  spocket: 'Spocket',
+  manual: 'Manual supplier (Alibaba, CJ, any wholesaler)',
+};
+
 export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   app.post('/suppliers', async (req, reply) => {
     const account = await req.account();
@@ -19,23 +26,27 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     if (!isAllowedSupplier(body.supplier)) {
       throw unprocessable('SUPPLIER_NOT_ALLOWED', `Supplier must be one of ${SUPPLIER_ALLOWLIST.join(', ')}`);
     }
-    if (app.config.mode === 'mock' && body.supplier !== 'mock') {
-      throw unprocessable('SUPPLIER_NOT_AVAILABLE', 'Only the mock supplier is available in mock mode');
-    }
-    if (app.config.mode === 'real' && body.supplier === 'mock') {
-      throw unprocessable('SUPPLIER_NOT_AVAILABLE', 'The mock supplier is not available in real mode');
+    // 'manual' is the one supplier that works in both modes; the others follow the mode.
+    if (body.supplier !== 'manual') {
+      if (app.config.mode === 'mock' && body.supplier !== 'mock') {
+        throw unprocessable('SUPPLIER_NOT_AVAILABLE', 'Only the mock and manual suppliers are available in mock mode');
+      }
+      if (app.config.mode === 'real' && body.supplier === 'mock') {
+        throw unprocessable('SUPPLIER_NOT_AVAILABLE', 'The mock supplier is not available in real mode');
+      }
     }
 
     let status: 'connected' | 'error' | 'not_configured' = 'connected';
     let cached = 0;
     try {
-      cached = await cacheSupplierCatalog(app.db, app.connectors, body.supplier);
+      // The manual catalog is the Product table itself: nothing to pull.
+      if (body.supplier !== 'manual') cached = await cacheSupplierCatalog(app.db, app.connectors, body.supplier);
     } catch (err) {
       status = err instanceof NotConfiguredError ? 'not_configured' : 'error';
       req.log.warn({ err }, 'supplier catalog fetch failed');
     }
 
-    const label = body.supplier === 'mock' ? 'Mock supplier (demo)' : body.supplier === 'cjdropshipping' ? 'CJdropshipping' : 'Spocket';
+    const label = SUPPLIER_LABELS[body.supplier];
     const conn = await app.db.supplierConnection.upsert({
       where: { accountId_supplier: { accountId: account.id, supplier: body.supplier } },
       create: { id: id('sup'), accountId: account.id, supplier: body.supplier, status, label },

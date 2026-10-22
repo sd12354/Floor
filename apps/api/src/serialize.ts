@@ -74,6 +74,7 @@ export function serializeProduct(p: Product) {
     handlingDays: p.handlingDays,
     brand: p.brand ?? undefined,
     categoryHint: p.categoryHint ?? undefined,
+    supplierUrl: p.supplierUrl ?? undefined,
     updatedAt: p.updatedAt.toISOString(),
   };
 }

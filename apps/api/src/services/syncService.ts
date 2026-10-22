@@ -13,11 +13,18 @@ export interface SyncResult {
   blocked: number;
 }
 
+export interface SyncScope {
+  /** Only sweep the listings of this product. */
+  productId?: string;
+  /** The caller already wrote a new cost/shipping to the product row (manual products), so treat the cost as moved. */
+  costMoved?: boolean;
+}
+
 /** Largest automatic price move (relative to the current price) the sweep will make on a live listing. */
 export const MAX_REPRICE_STEP_PCT = 0.25;
 
 /**
- * One price/stock sweep for an account:
+ * One price/stock sweep for an account (or, with `scope.productId`, for the listings of one product):
  *  - refresh cost/stock for every active/paused listing's product
  *  - recompute floor + target; when the supplier cost moved, reprice to the new target as long as the
  *    move is within MAX_REPRICE_STEP_PCT (bigger jumps need a human: the listing is paused instead)
@@ -25,9 +32,9 @@ export const MAX_REPRICE_STEP_PCT = 0.25;
  *  - pause when stock is 0 or the price is below the floor; resume when fixed (manual pauses untouched)
  *  - every transition writes an Event
  */
-export async function runSync(db: Db, connectors: Connectors, account: Account): Promise<SyncResult> {
+export async function runSync(db: Db, connectors: Connectors, account: Account, scope: SyncScope = {}): Promise<SyncResult> {
   const pricing = accountPricing(account);
-  const listings = await db.listing.findMany({ where: { accountId: account.id, status: { in: ['active', 'paused'] } }, include: { product: true } });
+  const listings = await db.listing.findMany({ where: { accountId: account.id, status: { in: ['active', 'paused'] }, ...(scope.productId ? { productId: scope.productId } : {}) }, include: { product: true } });
   const result: SyncResult = { repriced: 0, paused: 0, resumed: 0, checked: listings.length, blocked: 0 };
   if (listings.length === 0) return result;
 
@@ -46,7 +53,7 @@ export async function runSync(db: Db, connectors: Connectors, account: Account):
       continue;
     }
     const proj = projectPrice(product, pricing, listing.buyerShippingCents);
-    const costChanged = product.costCents !== listing.product.costCents || product.shippingCents !== listing.product.shippingCents;
+    const costChanged = scope.costMoved === true || product.costCents !== listing.product.costCents || product.shippingCents !== listing.product.shippingCents;
     const manuallyPaused = listing.status === 'paused' && listing.pauseReason === 'manual';
 
     let priceCents = listing.priceCents;
@@ -91,6 +98,6 @@ export async function runSync(db: Db, connectors: Connectors, account: Account):
       await connectors.ebay.updateListing(listing.ebayItemId, { priceCents, quantity });
     }
   }
-  await writeEvent(db, { accountId: account.id, type: 'sync.completed', payload: { ...result } });
+  await writeEvent(db, { accountId: account.id, type: 'sync.completed', payload: { ...result, ...(scope.productId ? { productId: scope.productId } : {}) } });
   return result;
 }

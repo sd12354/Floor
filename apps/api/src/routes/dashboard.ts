@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { serializeEvent } from '../serialize.js';
 import { startOfUtcDay } from '../services/audit.js';
+import { supplierSpendToday } from '../services/orderPipeline.js';
 
 export const HEALTH_THRESHOLDS = { lateShipmentPct: 0.03, defectPct: 0.005 } as const;
 
@@ -27,10 +28,9 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
 
     // Today.
     const todayOrders = await app.db.order.findMany({ where: { accountId: account.id, createdAt: { gte: dayStart } } });
-    const todayLedger = await app.db.ledgerEntry.groupBy({ by: ['kind'], where: { accountId: account.id, at: { gte: dayStart } }, _sum: { amountCents: true } });
-    const sum = (kind: string) => todayLedger.find((r) => r.kind === kind)?._sum.amountCents ?? 0;
     const revenueCents = todayOrders.filter((o) => !['cancelled', 'refunded'].includes(o.status)).reduce((s, o) => s + o.salePriceCents + o.buyerShippingCents, 0);
-    const supplierSpendCents = Math.abs(sum('supplier_cost')) + Math.abs(sum('supplier_shipping'));
+    // Same figure the daily spend cap sees: ledger spend today plus what orders awaiting a manual supplier have reserved.
+    const supplierSpendCents = await supplierSpendToday(app.db, account.id, now);
     const profitCents = todayOrders.filter((o) => ['ordered', 'shipped', 'delivered'].includes(o.status)).reduce((s, o) => s + (o.netProfitCents ?? 0), 0);
 
     // Health: late shipment = ordered past handling window; defects = cancelled after being ordered, plus refunds.
@@ -46,6 +46,8 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     const listingCounts = await app.db.listing.groupBy({ by: ['status'], where: { accountId: account.id }, _count: { _all: true } });
     const count = (s: string) => listingCounts.find((r) => r.status === s)?._count._all ?? 0;
 
+    const awaiting = await app.db.order.aggregate({ where: { accountId: account.id, status: 'awaiting_supplier' }, _count: { _all: true }, _min: { createdAt: true } });
+
     const recentEvents = await app.db.event.findMany({ where: { accountId: account.id }, orderBy: { at: 'desc' }, take: 25 });
 
     return {
@@ -58,6 +60,8 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         thresholds: HEALTH_THRESHOLDS,
       },
       listings: { active: count('active'), paused: count('paused'), draft: count('draft'), blocked: count('blocked'), ended: count('ended') },
+      // Orders waiting for the seller to buy them by hand never auto-cancel; oldestAt is when the oldest buyer paid.
+      awaitingSupplier: { count: awaiting._count._all, ...(awaiting._min.createdAt ? { oldestAt: awaiting._min.createdAt.toISOString() } : {}) },
       recentEvents: recentEvents.map(serializeEvent),
     };
   });

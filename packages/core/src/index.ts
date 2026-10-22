@@ -13,3 +13,4 @@ export { mulberry32, randInt } from './connectors/mock/rng.js';
 export { RealEbay, DEFAULT_SCOPES, type RealEbayConfig } from './connectors/real/ebay.js';
 export { RealCjDropshipping, type CjConfig } from './connectors/real/cjdropshipping.js';
 export { RealSpocket, type SpocketConfig } from './connectors/real/spocket.js';
+export { ManualSupplierConnector, ManualSupplierError, type ManualProductLookup, type ManualSupplierErrorCode } from './connectors/manual.js';

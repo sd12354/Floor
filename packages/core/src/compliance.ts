@@ -1,6 +1,6 @@
 import type { ComplianceResult, Supplier } from './types.js';
 
-export const SUPPLIER_ALLOWLIST = ['mock', 'cjdropshipping', 'spocket'] as const;
+export const SUPPLIER_ALLOWLIST = ['mock', 'cjdropshipping', 'spocket', 'manual'] as const;
 export type AllowedSupplier = (typeof SUPPLIER_ALLOWLIST)[number];
 
 export function isAllowedSupplier(s: string): s is Supplier {

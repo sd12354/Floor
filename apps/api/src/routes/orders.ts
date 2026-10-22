@@ -5,6 +5,7 @@ import { notFound, unprocessable } from '../errors.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { pagination, parse } from '../plugins/validate.js';
 import { serializeEvent, serializeLedger, serializeMessage, serializeOrder } from '../serialize.js';
+import { manualOrderExtras } from '../services/manualFulfillment.js';
 import { cancelOrder, fulfilHeldOrder, intakeOrder, processOrder } from '../services/orderPipeline.js';
 
 const decisionSchema = z.object({ action: z.enum(['fulfil', 'cancel']) });
@@ -42,7 +43,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     const o = await app.db.order.findFirst({
       where: { id: req.params.id, accountId: account.id },
       include: {
-        listing: { select: { title: true } },
+        listing: { select: { title: true, product: true } },
         events: { orderBy: { at: 'asc' } },
         messages: { orderBy: { at: 'asc' } },
         ledger: { orderBy: { at: 'asc' } },
@@ -52,6 +53,7 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     return {
       ...serializeOrder(o),
       listing: { title: o.listing.title },
+      ...manualOrderExtras(o, o.listing.product, account),
       events: o.events.map(serializeEvent),
       messages: o.messages.map(serializeMessage),
       ledger: o.ledger.map(serializeLedger),
@@ -63,7 +65,9 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
     const body = parse(decisionSchema, req.body ?? {});
     const order = await app.db.order.findFirst({ where: { id: req.params.id, accountId: account.id } });
     if (!order) throw notFound('Order', req.params.id);
-    if (order.status !== 'held') throw unprocessable('ORDER_NOT_HELD', `Order is ${order.status}, decisions apply to held orders only`);
+    // Held orders accept fulfil or cancel; manual orders waiting for the seller accept cancel only.
+    const cancellable = order.status === 'held' || (order.status === 'awaiting_supplier' && body.action === 'cancel');
+    if (!cancellable) throw unprocessable('ORDER_NOT_HELD', `Order is ${order.status}, decisions apply to held orders (and cancel for orders awaiting the supplier)`);
     const updated =
       body.action === 'fulfil'
         ? await fulfilHeldOrder(app.db, app.connectors, account, order.id)
@@ -83,7 +87,9 @@ export async function orderRoutes(app: FastifyInstance): Promise<void> {
 
     if (body.priceDriftPct !== undefined && body.priceDriftPct !== 0) {
       const costCents = Math.max(1, Math.round(listing.product.costCents * (1 + body.priceDriftPct / 100)));
-      app.connectors.mockSupplier.setSku(listing.product.supplierSku, { costCents });
+      // Manual products have no remote source: the seller's own row is the price.
+      if (listing.product.supplier === 'manual') await app.db.product.update({ where: { id: listing.product.id }, data: { costCents } });
+      else app.connectors.mockSupplier.setSku(listing.product.supplierSku, { costCents });
     }
     const { order } = await intakeOrder(app.db, account, {
       ebayOrderId: `sim-${nanoid(8)}`,
