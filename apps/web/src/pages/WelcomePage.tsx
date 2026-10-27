@@ -81,6 +81,21 @@ export function WelcomePage() {
           <div className="mt-6"><Link to="/login" onClick={markIntroSeen} className="text-[13px] text-white/50 hover:text-white">Already set up? Sign in</Link></div>
         </Reveal>
       </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/10 px-6 py-12 bg-[#07090F]">
+        <div className="mx-auto max-w-[1000px] flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <span className="inline-flex items-center gap-3"><LogoMark size={28} /><span className="font-display text-[16px]">Floor</span></span>
+          <nav className="flex flex-wrap gap-x-6 gap-y-2 text-[13.5px] text-white/55" aria-label="Footer">
+            <Link to="/about" className="hover:text-white">About</Link>
+            <Link to="/privacy" className="hover:text-white">Privacy</Link>
+            <Link to="/terms" className="hover:text-white">Terms</Link>
+            <Link to="/refund" className="hover:text-white">Refunds</Link>
+            <Link to="/cookies" className="hover:text-white">Cookies</Link>
+          </nav>
+        </div>
+        <p className="mx-auto max-w-[1000px] mt-6 text-[12px] text-white/35">© {new Date().getFullYear()} Floor. Not affiliated with eBay Inc. Floor works only with wholesale suppliers, in line with eBay's dropshipping policy.</p>
+      </footer>
     </div>
   );
 }
