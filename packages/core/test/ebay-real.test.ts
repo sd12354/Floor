@@ -104,7 +104,7 @@ describe('listings', () => {
     expect(put?.method).toBe('PUT');
     expect(put?.url).toBe('https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item/SKU%201%2Fx');
     expect(put?.headers['Content-Language']).toBe('en-US');
-    expect(jsonBody(put)).toEqual({ condition: 'NEW', product: { title: 'T', description: 'D', imageUrls: ['https://i/1.jpg'] }, availability: { shipToLocationAvailability: { quantity: 5 } } });
+    expect(jsonBody(put)).toEqual({ condition: 'NEW', product: { title: 'T', description: 'D', imageUrls: ['https://i/1.jpg'], aspects: { Brand: ['Unbranded'] } }, availability: { shipToLocationAvailability: { quantity: 5 } } });
     expect(get?.url).toBe('https://api.sandbox.ebay.com/sell/inventory/v1/offer?sku=SKU+1%2Fx&marketplace_id=EBAY_US');
     expect(post?.url).toBe('https://api.sandbox.ebay.com/sell/inventory/v1/offer');
     expect(jsonBody(post)).toEqual({
