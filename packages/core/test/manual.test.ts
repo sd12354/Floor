@@ -25,7 +25,7 @@ describe('manual supplier allowlist', () => {
   it('allows manual and still passes the compliance gate', () => {
     expect(SUPPLIER_ALLOWLIST).toContain('manual');
     expect(isAllowedSupplier('manual')).toBe(true);
-    expect(isAllowedSupplier('aliexpress')).toBe(false);
+    expect(isAllowedSupplier('amazon')).toBe(false);
     const gate = complianceGate({ supplier: 'manual', title: 'Plain widget', images: ['https://x.test/a.jpg'], supplierHandlingDays: 9, accountHandlingTimeDays: 3, blockedBrands: [] });
     expect(gate).toMatchObject({ ok: false, code: 'HANDLING_TIME_EXCEEDED' });
   });

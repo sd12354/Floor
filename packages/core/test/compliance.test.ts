@@ -21,8 +21,8 @@ const ok: ComplianceInput = {
 };
 
 describe('allowlist', () => {
-  it('contains exactly the four suppliers', () => {
-    expect([...SUPPLIER_ALLOWLIST]).toEqual(['mock', 'cjdropshipping', 'spocket', 'manual']);
+  it('contains exactly the five suppliers', () => {
+    expect([...SUPPLIER_ALLOWLIST]).toEqual(['mock', 'cjdropshipping', 'spocket', 'aliexpress', 'manual']);
     expect(isAllowedSupplier('amazon')).toBe(false);
     expect(isAllowedSupplier('spocket')).toBe(true);
   });
@@ -50,7 +50,8 @@ describe('complianceGate', () => {
   });
 
   it('SUPPLIER_NOT_ALLOWED', () => {
-    const r = complianceGate({ ...ok, supplier: 'aliexpress' });
+    // Amazon is never a Floor connector (see CLAUDE.md); AliExpress is now allowed.
+    const r = complianceGate({ ...ok, supplier: 'amazon' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe('SUPPLIER_NOT_ALLOWED');
   });

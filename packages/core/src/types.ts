@@ -52,7 +52,7 @@ export type ComplianceCode =
 
 export type ComplianceResult = { ok: true } | { ok: false; code: ComplianceCode; detail: string };
 
-export type Supplier = 'mock' | 'cjdropshipping' | 'spocket' | 'manual';
+export type Supplier = 'mock' | 'cjdropshipping' | 'spocket' | 'aliexpress' | 'manual';
 
 export interface Address {
   name?: string;
