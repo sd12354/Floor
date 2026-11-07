@@ -37,6 +37,10 @@ export interface AppConfig {
   webOrigin: string;
   /** Shared secret for POST /webhooks/ebay callers that have no session (header X-Floor-Webhook-Secret). */
   webhookSecret?: string;
+  /** eBay marketplace account-deletion notification: the verification token (32-80 chars, alphanumeric/_/-) set in the eBay portal. */
+  ebayDeletionToken?: string;
+  /** The exact https endpoint URL registered in the eBay portal for deletion notifications (used in the challenge hash). */
+  ebayDeletionEndpoint?: string;
   /** How often the real-mode eBay order poller runs. */
   orderPollIntervalMs: number;
   cjApiKey?: string;
@@ -73,6 +77,8 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     secretKey: process.env.FLOOR_SECRET_KEY || undefined,
     webOrigin: process.env.WEB_ORIGIN || corsOrigins[0] || 'http://localhost:5173',
     webhookSecret: process.env.FLOOR_WEBHOOK_SECRET || undefined,
+    ebayDeletionToken: process.env.EBAY_DELETION_TOKEN || undefined,
+    ebayDeletionEndpoint: process.env.EBAY_DELETION_ENDPOINT || undefined,
     orderPollIntervalMs: int('EBAY_ORDER_POLL_MS', 60_000),
     cjApiKey: process.env.CJ_API_KEY || undefined,
     spocketApiKey: process.env.SPOCKET_API_KEY || undefined,

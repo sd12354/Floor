@@ -13,6 +13,7 @@ import { dashboardRoutes } from './routes/dashboard.js';
 import { discoveryRoutes } from './routes/discovery.js';
 import { ebayCallbackRoutes } from './routes/ebayCallback.js';
 import { ebaySetupRoutes } from './routes/ebaySetup.js';
+import { ebayDeletionRoutes } from './routes/ebayDeletion.js';
 import { ledgerRoutes } from './routes/ledger.js';
 import { listingRoutes } from './routes/listings.js';
 import { messageRoutes } from './routes/messages.js';
@@ -80,6 +81,7 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
       await api.register(manualOrderRoutes);
       await api.register(manualProductRoutes);
       await api.register(webhookRoutes);
+      await api.register(ebayDeletionRoutes);
       await api.register(dashboardRoutes);
       await api.register(ledgerRoutes);
       await api.register(messageRoutes);
