@@ -52,7 +52,7 @@ describe('account & setup', () => {
   });
 
   it('POST /suppliers rejects non-allowlisted and is idempotent for mock; DELETE removes', async () => {
-    const bad = await t.api<{ error: { code: string } }>('POST', '/suppliers', { supplier: 'aliexpress' });
+    const bad = await t.api<{ error: { code: string } }>('POST', '/suppliers', { supplier: 'amazon' });
     expect(bad.status).toBe(422);
     expect(bad.body.error.code).toBe('SUPPLIER_NOT_ALLOWED');
     const notAvail = await t.api<{ error: { code: string } }>('POST', '/suppliers', { supplier: 'cjdropshipping' });

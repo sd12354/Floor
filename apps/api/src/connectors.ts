@@ -2,6 +2,7 @@ import {
   ManualSupplierConnector,
   MockEbay,
   MockSupplier,
+  RealAliExpress,
   RealCjDropshipping,
   RealEbay,
   RealSpocket,
@@ -14,6 +15,7 @@ import { nanoid } from 'nanoid';
 import type { AppConfig } from './config.js';
 import type { Db } from './db/client.js';
 import { AppError } from './errors.js';
+import { DbOrderRefStore } from './services/aliexpressOrderRefStore.js';
 import { DbTokenStore } from './services/ebayTokenStore.js';
 import { ProductTableLookup } from './services/manualCatalog.js';
 
@@ -38,12 +40,14 @@ export interface Connectors {
 export function buildConnectors(config: AppConfig, db?: Db, opts: { fetch?: FetchLike } = {}): Connectors {
   const lookup = new ProductTableLookup();
   const tokenStore = new DbTokenStore(config.secretKey);
+  const aliexpressOrderRefStore = new DbOrderRefStore();
   let boundDb: Db | undefined;
   let logger: (message: string, meta?: Record<string, unknown>) => void = () => undefined;
   const bindDb = (d: Db): void => {
     boundDb = d;
     lookup.bind(d);
     tokenStore.bind(d);
+    aliexpressOrderRefStore.bind(d);
   };
   if (db) bindDb(db);
   const manualSupplier = new ManualSupplierConnector(lookup);
@@ -57,6 +61,12 @@ export function buildConnectors(config: AppConfig, db?: Db, opts: { fetch?: Fetc
   const suppliers: Connectors['suppliers'] = {
     cjdropshipping: new RealCjDropshipping({ apiKey: config.cjApiKey }),
     spocket: new RealSpocket({ apiKey: config.spocketApiKey }),
+    aliexpress: new RealAliExpress({
+      ...config.aliexpress,
+      orderRefStore: aliexpressOrderRefStore,
+      log: (m, meta) => logger(m, meta),
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    }),
     manual: manualSupplier,
   };
   return {

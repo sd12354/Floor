@@ -122,7 +122,7 @@ describe('connecting the manual supplier', () => {
   });
 
   it('keeps refusing suppliers that are not on the allowlist', async () => {
-    const res = await t.api<ApiError>('POST', '/suppliers', { supplier: 'aliexpress' });
+    const res = await t.api<ApiError>('POST', '/suppliers', { supplier: 'amazon' });
     expect(res.status).toBe(422);
     expect(err(res).code).toBe('SUPPLIER_NOT_ALLOWED');
   });

@@ -16,6 +16,7 @@ const SUPPLIER_LABELS: Record<Supplier, string> = {
   mock: 'Mock supplier (demo)',
   cjdropshipping: 'CJdropshipping',
   spocket: 'Spocket',
+  aliexpress: 'AliExpress',
   manual: 'Manual supplier (Alibaba, CJ, any wholesaler)',
 };
 

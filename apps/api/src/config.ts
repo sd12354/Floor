@@ -45,6 +45,12 @@ export interface AppConfig {
   orderPollIntervalMs: number;
   cjApiKey?: string;
   spocketApiKey?: string;
+  /** AliExpress Open Platform credentials. The access token is obtained once by the seller (see README). */
+  aliexpress: {
+    appKey?: string;
+    appSecret?: string;
+    accessToken?: string;
+  };
 }
 
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -82,6 +88,11 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     orderPollIntervalMs: int('EBAY_ORDER_POLL_MS', 60_000),
     cjApiKey: process.env.CJ_API_KEY || undefined,
     spocketApiKey: process.env.SPOCKET_API_KEY || undefined,
+    aliexpress: {
+      appKey: process.env.ALIEXPRESS_APP_KEY || undefined,
+      appSecret: process.env.ALIEXPRESS_APP_SECRET || undefined,
+      accessToken: process.env.ALIEXPRESS_ACCESS_TOKEN || undefined,
+    },
   };
   return { ...base, ...overrides };
 }
