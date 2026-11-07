@@ -38,6 +38,8 @@ export class EbayHttp {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/json',
+          // eBay's Inventory API requires Accept-Language on every call (sandbox enforces it); default it here.
+          'Accept-Language': 'en-US',
           ...(req.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...req.headers,
         },

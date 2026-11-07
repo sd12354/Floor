@@ -21,7 +21,7 @@ export type { EbayTokens, FetchLike, RealEbayConfig, TokenStore } from './ebayTy
 
 const INV = '/sell/inventory/v1';
 const FUL = '/sell/fulfillment/v1';
-const LANG = { 'Content-Language': 'en-US' } as const;
+const LANG = { 'Content-Language': 'en-US', 'Accept-Language': 'en-US' } as const;
 const ORDER_PAGE = 200;
 const MAX_ORDER_PAGES = 10;
 

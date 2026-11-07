@@ -1,4 +1,4 @@
-import { NotConfiguredError } from '@floor/core';
+import { NotConfiguredError, EbayApiError, EbayReauthRequiredError } from '@floor/core';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { ZodError } from 'zod';
@@ -28,6 +28,12 @@ export const errorPlugin = fp(async (app: FastifyInstance) => {
     } else if (err instanceof NotConfiguredError) {
       status = 501;
       body = { error: { code: err.code, message: err.message, details: { missing: err.missing } } };
+    } else if (err instanceof EbayReauthRequiredError) {
+      status = 409;
+      body = { error: { code: err.code, message: err.message } };
+    } else if (err instanceof EbayApiError) {
+      status = err.status >= 400 && err.status < 600 ? err.status : 502;
+      body = { error: { code: 'EBAY_API_ERROR', message: `eBay rejected the request: ${err.message}`, details: { errorIds: err.errorIds } } };
     } else if (isFastifyError(err)) {
       status = err.statusCode ?? 500;
       // Fastify's own codes (FST_ERR_CTP_* for bad bodies, etc.) are not contract codes.
