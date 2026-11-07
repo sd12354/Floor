@@ -149,7 +149,13 @@ export class RealEbay implements EbayConnector {
       headers: LANG,
       body: {
         condition: 'NEW',
-        product: { title: input.title, description: input.description, imageUrls: input.images },
+        product: {
+          title: input.title,
+          description: input.description,
+          imageUrls: input.images,
+          // eBay requires at least a minimal aspect set to publish; default Brand so sandbox/most categories accept it.
+          aspects: { Brand: [input.brand ?? 'Unbranded'] },
+        },
         availability: { shipToLocationAvailability: { quantity: input.quantity } },
       },
     });

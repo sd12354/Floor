@@ -90,6 +90,8 @@ export interface EbayListingInput {
   buyerShippingCents: Cents;
   quantity: number;
   handlingTimeDays: number;
+  /** Optional brand for eBay item aspects; defaults to "Unbranded" when absent. */
+  brand?: string;
 }
 
 export interface EbayListingRef {

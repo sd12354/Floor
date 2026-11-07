@@ -140,6 +140,7 @@ export async function publishListings(db: Db, connectors: Connectors, account: A
         buyerShippingCents: listing.buyerShippingCents,
         quantity: listing.quantity,
         handlingTimeDays: account.handlingTimeDays,
+        brand: listing.product.brand ?? undefined,
       });
       ebayItemId = ref.ebayItemId;
     } else {
