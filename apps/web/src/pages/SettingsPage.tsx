@@ -11,7 +11,7 @@ import { EbaySetupCard } from '@/components/settings/EbaySetupCard';
 import { adRateError, rulesFromAccount, toPatch, type RulesDraft } from '@/lib/rules';
 
 
-const supplierNames: Record<SupplierKind, string> = { mock: 'Mock supplier', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', manual: 'Manual supplier' };
+const supplierNames: Record<SupplierKind, string> = { mock: 'Mock supplier', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', aliexpress: 'AliExpress', manual: 'Manual supplier' };
 
 export function SettingsPage() {
   const { data: account, isPending, error, refetch } = useAccount();

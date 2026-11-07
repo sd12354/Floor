@@ -48,7 +48,7 @@ export type ComplianceCode =
 
 export type ComplianceResult = { ok: true } | { ok: false; code: ComplianceCode; detail: string };
 
-export type SupplierKind = 'mock' | 'cjdropshipping' | 'spocket' | 'manual';
+export type SupplierKind = 'mock' | 'cjdropshipping' | 'spocket' | 'aliexpress' | 'manual';
 
 export interface SupplierConnection {
   id: string;

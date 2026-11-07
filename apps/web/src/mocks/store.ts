@@ -273,7 +273,7 @@ export function dashboard(): DashboardResponse {
 }
 
 export function addSupplier(supplier: SupplierKind): SupplierConnection {
-  const labels: Record<SupplierKind, string> = { mock: 'Mock supplier (demo catalog)', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', manual: 'Manual supplier (Alibaba, CJ, any wholesaler)' };
+  const labels: Record<SupplierKind, string> = { mock: 'Mock supplier (demo catalog)', cjdropshipping: 'CJdropshipping', spocket: 'Spocket', aliexpress: 'AliExpress', manual: 'Manual supplier (Alibaba, CJ, any wholesaler)' };
   const c: SupplierConnection = { id: nextId('sup'), accountId: 'acc_demo', supplier, status: supplier === 'mock' || supplier === 'manual' ? 'connected' : 'not_configured', label: labels[supplier], createdAt: now() };
   state.account.supplierConnections.push(c);
   return c;
