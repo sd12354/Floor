@@ -17,4 +17,16 @@ export { SETUP_NAMES, type CategorySuggestion, type EbaySetupInput, type EbaySet
 export { mapEbayOrder, mapEbayOrders, type EbayOrder } from './connectors/real/ebayOrders.js';
 export { RealCjDropshipping, type CjConfig } from './connectors/real/cjdropshipping.js';
 export { RealSpocket, type SpocketConfig } from './connectors/real/spocket.js';
+export {
+  RealAliExpress,
+  ALIEXPRESS_GATEWAY,
+  ALIEXPRESS_API_VERSION,
+  ALIEXPRESS_SIGN_METHOD,
+  AliExpressApiError,
+  AliExpressReauthRequiredError,
+  signTopRequest,
+  topBaseString,
+  type RealAliExpressConfig,
+  type OrderRefStore,
+} from './connectors/real/aliexpress.js';
 export { ManualSupplierConnector, ManualSupplierError, type ManualProductLookup, type ManualSupplierErrorCode } from './connectors/manual.js';
