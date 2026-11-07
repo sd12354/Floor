@@ -12,3 +12,13 @@ apps/api/src/generated/
 apps/api/*.db
 apps/api/prisma/*.db-*
 floor-start.log
+
+# Local secrets backups, tunnel binary, and tool hint files (never commit)
+.env.backup-*
+apps/api/.env.backup-*
+cloudflared
+cloudflared.tgz
+apps/api/.agents/
+apps/api/.claude/
+apps/api/.windsurf/
+apps/api/skills-lock.json
