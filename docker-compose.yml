@@ -1,7 +1,10 @@
-# Local production-shaped run. Copy apps/api/.env.example to apps/api/.env before using real eBay.
+# Run from the repository root: docker compose up --build
+# Copy apps/api/.env.example to apps/api/.env before using real eBay.
 services:
   floor:
-    build: .
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
     ports:
       - "4000:4000"
     env_file:
