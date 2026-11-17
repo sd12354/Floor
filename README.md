@@ -67,6 +67,8 @@ Not automated in real mode: buyer messages (a logged no-op), orders with several
 
 Floor is one long-running process: the API, the scheduler, and the dashboard on the same origin, with SQLite on a volume. Do not put the API on a serverless host. The scheduler and the database need a process that stays up.
 
+From the repository root (the directory that contains `compose.yaml`):
+
 ```bash
 docker compose up --build
 ```
@@ -81,7 +83,7 @@ Before a public https deploy:
 
 `GET /health` returns `{ ok, mode, db }` and is the container health check. It returns 503 when SQLite cannot be queried.
 
-A split deploy (dashboard on Vercel, API elsewhere) needs `VITE_API_BASE` set to the API origin plus `/api/v1` at **build** time, and `CORS_ORIGINS` on the API set to the dashboard origin. The supported setup is the single container above. `vercel.json` only makes the dashboard's client routes resolve; it does not run the API.
+A split deploy (dashboard on Vercel, API elsewhere) needs `VITE_API_BASE` set to the API origin plus `/api/v1` at **build** time, and `CORS_ORIGINS` on the API set to the dashboard origin. The supported setup is the single container above. `apps/web/vercel.json` only makes the dashboard's client routes resolve; it does not run the API. The image definition stays in `deploy/Dockerfile` so a Vercel project connected to this repo keeps building the dashboard instead of the container.
 
 ## Commands
 

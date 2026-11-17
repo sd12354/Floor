@@ -1,0 +1,28 @@
+# Run from the repository root: docker compose up --build
+# Copy apps/api/.env.example to apps/api/.env before using real eBay.
+services:
+  floor:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - path: apps/api/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      DATABASE_URL: file:/data/floor.db
+      WEB_DIST: /app/apps/web/dist
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:4000}
+      FLOOR_ALLOW_HTTP: ${FLOOR_ALLOW_HTTP:-1}
+      FLOOR_MODE: ${FLOOR_MODE:-mock}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+    volumes:
+      - floor-data:/data
+    restart: unless-stopped
+
+volumes:
+  floor-data:
