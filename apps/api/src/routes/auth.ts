@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError } from '../errors.js';
 import { parse } from '../plugins/validate.js';
-import { createSession, createUser, deleteSession, LoginThrottle, normaliseEmail, toPublicUser } from '../services/auth.js';
+import { createSession, createUser, deleteSession, IpThrottle, LoginThrottle, normaliseEmail, toPublicUser } from '../services/auth.js';
 import { decoyHash, hashPassword, PASSWORD_MAX, PASSWORD_MIN, verifyPassword } from '../services/password.js';
+import { setSessionCookie } from '../services/sessionCookie.js';
 
 const emailSchema = z.string().trim().min(3).max(254).email('Enter a valid email address');
 const signupSchema = z.object({ email: emailSchema, password: z.string().min(PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters`).max(PASSWORD_MAX) });
@@ -13,7 +14,9 @@ const invalid = (): AppError => new AppError(401, 'INVALID_CREDENTIALS', 'Wrong 
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const throttle = new LoginThrottle();
+  const ipThrottle = new IpThrottle();
   const open = { config: { public: true } } as const;
+  const tooMany = (): AppError => new AppError(429, 'TOO_MANY_ATTEMPTS', 'Too many sign-in attempts. Try again in 15 minutes.');
   void decoyHash(); // warm it so the first unknown-email login is not slower than later ones
 
   /** Tells the sign-in page whether to show "Sign in" or the one-time "Create your account". */
@@ -21,6 +24,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   /** Floor is single-seller: signup works only until the first user exists. */
   app.post('/auth/signup', open, async (req, reply) => {
+    if (!ipThrottle.tryAttempt(req.ip)) throw tooMany();
     const body = parse(signupSchema, req.body ?? {});
     if ((await app.db.user.count()) > 0) {
       throw new AppError(403, 'SIGNUP_CLOSED', 'An account already exists. Sign in instead.');
@@ -32,10 +36,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       throw err;
     });
     const { token, expiresAt } = await createSession(app.db, user.id);
+    setSessionCookie(reply, app.config, token);
     return reply.code(201).send({ token, expiresAt: expiresAt.toISOString(), user: toPublicUser(user) });
   });
 
-  app.post('/auth/login', open, async (req) => {
+  app.post('/auth/login', open, async (req, reply) => {
+    if (!ipThrottle.tryAttempt(req.ip)) throw tooMany();
     const body = parse(loginSchema, req.body ?? {});
     const email = normaliseEmail(body.email);
     if (!throttle.tryAttempt(email)) {
@@ -47,6 +53,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!user || !ok) throw invalid();
     throttle.clear(email);
     const { token, expiresAt } = await createSession(app.db, user.id);
+    setSessionCookie(reply, app.config, token);
     return { token, expiresAt: expiresAt.toISOString(), user: toPublicUser(user) };
   });
 
@@ -54,6 +61,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/auth/logout', async (req, reply) => {
     if (req.sessionToken) await deleteSession(app.db, req.sessionToken);
+    setSessionCookie(reply, app.config, null);
     return reply.code(204).send();
   });
 }

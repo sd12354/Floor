@@ -1,7 +1,14 @@
 import { clearToken, getToken } from '@/lib/authToken';
 import type { ApiError } from './types';
 
-export const API_BASE = '/api/v1';
+/** Same-origin `/api/v1` unless a split deploy sets VITE_API_BASE at build time. */
+function apiBase(): string {
+  const raw = import.meta.env.VITE_API_BASE;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim().replace(/\/$/, '');
+  return '/api/v1';
+}
+
+export const API_BASE = apiBase();
 export const ACCOUNT_ID = 'acc_demo';
 
 export class FloorApiError extends Error {
@@ -34,6 +41,7 @@ async function request<T>(method: string, path: string, opts: { body?: unknown; 
   const token = getToken();
   const res = await fetch(withQuery(path, opts.query), {
     method,
+    credentials: 'include',
     headers: {
       'X-Account-Id': ACCOUNT_ID,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

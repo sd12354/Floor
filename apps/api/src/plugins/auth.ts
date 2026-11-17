@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import { AppError } from '../errors.js';
 import { toPublicUser, userForToken, type PublicUser } from '../services/auth.js';
+import { readCookie, SESSION_COOKIE } from '../services/sessionCookie.js';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -27,7 +28,7 @@ export const authGuard = fp(async (app: FastifyInstance) => {
   app.decorateRequest('sessionToken', null);
   app.addHook('onRequest', async (req) => {
     if (req.method === 'OPTIONS' || req.routeOptions.config.public) return;
-    const token = bearerToken(req.headers.authorization);
+    const token = bearerToken(req.headers.authorization) ?? readCookie(req.headers.cookie, SESSION_COOKIE);
     const user = token ? await userForToken(app.db, token) : null;
     if (!token || !user) throw new AppError(401, 'UNAUTHENTICATED', 'Sign in to continue');
     req.user = toPublicUser(user);

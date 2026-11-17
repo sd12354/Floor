@@ -103,11 +103,11 @@ interface ComplianceResult { ok: true } | { ok: false; code: 'SUPPLIER_NOT_ALLOW
 Floor is single-seller. Every `/api/v1` route needs `Authorization: Bearer <session token>` except the three public routes below; `/health` is also open.
 - `GET /auth/status` (public) → `{ hasUsers: boolean }`. The web app shows "Create your account" when false, "Sign in" when true.
 - `POST /auth/signup` (public) body `{ email, password }` (password 8 to 128 chars) → `201 { token, expiresAt, user: { id, email } }`. Works only while no user exists; afterwards `403 SIGNUP_CLOSED`.
-- `POST /auth/login` (public) body `{ email, password }` → `{ token, expiresAt, user }`. Email is trimmed and lower-cased. Wrong email or password → `401 INVALID_CREDENTIALS` (same message for both). 5 failures per email in 15 minutes → `429 TOO_MANY_ATTEMPTS`.
-- `GET /auth/me` → `{ user }`. `POST /auth/logout` → 204, invalidates that token.
+- `POST /auth/login` (public) body `{ email, password }` → `{ token, expiresAt, user }`. Email is trimmed and lower-cased. Wrong email or password → `401 INVALID_CREDENTIALS` (same message for both). 5 failures per email in 15 minutes, or 60 attempts from one IP in 15 minutes, → `429 TOO_MANY_ATTEMPTS`. Login and signup also set an `HttpOnly` `SameSite=Lax` cookie `floor_session` (Secure when `WEB_ORIGIN` is https). A request may authenticate with that cookie or with the bearer token.
+- `GET /auth/me` → `{ user }`. `POST /auth/logout` → 204, invalidates that token and clears the cookie.
 - Missing, unknown or expired token → `401 UNAUTHENTICATED`.
 - Passwords are stored as scrypt hashes. The session token is 32 random bytes; only its SHA-256 is stored. Sessions last 30 days.
-- The API listens on `127.0.0.1` by default (`HOST` overrides) and CORS allows only `CORS_ORIGINS`, so a fresh install cannot be claimed from another machine or website before the owner signs up. A tunnel to `127.0.0.1:4000` is the way to reach it from a phone.
+- In development the API listens on `127.0.0.1` (`HOST` overrides) and CORS allows only `CORS_ORIGINS`, so a fresh install cannot be claimed from another machine or website before the owner signs up. A tunnel to `127.0.0.1:4000` is the way to reach it from a phone. `NODE_ENV=production` listens on `0.0.0.0` and refuses to boot without an explicit `DATABASE_URL` and `WEB_ORIGIN` (https, unless `FLOOR_ALLOW_HTTP=1`).
 - A user row has a unique `slot = 'owner'`, so two racing signups cannot both succeed.
 - `POST /webhooks/ebay` requires EITHER a session token OR the shared secret header `X-Floor-Webhook-Secret` (v1.4).
 
@@ -198,7 +198,7 @@ Everything above still holds. The backend adds the following; the frontend may r
 - `POST /webhooks/ebay` body `{ ebayOrderId, listingId? | ebayItemId?, buyerName, shipTo, salePriceCents, buyerShippingCents?, createdAt? }` → `201 { duplicate: false, order }` or `200 { duplicate: true, order }` on replay.
 - `POST /messages/inbound` body `{ orderId, body }` → `201` Message (classified `wismo | cancel | return | other`, with `suggestedReply`). Mock mode: lets the UI simulate a buyer message.
 - `DELETE /suppliers/:id` → `204`.
-- `GET /health` (no prefix) → `{ ok, mode }`.
+- `GET /health` (no prefix) → `{ ok, mode, db: 'up' | 'down' }`. `db: 'down'` is HTTP 503.
 
 ### Error codes used
 `NOT_FOUND`, `VALIDATION` (400), `BAD_REQUEST`, `PRICE_BELOW_FLOOR` (422), `LISTING_NOT_PUBLISHED`, `LISTING_NOT_EDITABLE`, `LISTING_NOT_ACTIVE`, `ORDER_NOT_HELD`, `SUPPLIER_NOT_ALLOWED`, `SUPPLIER_NOT_AVAILABLE`, `MOCK_ONLY` (all 422), `NOT_CONFIGURED` (501, real connectors without credentials).
@@ -256,7 +256,7 @@ Required configuration for `createListing`: `EBAY_FULFILLMENT_POLICY_ID`, `EBAY_
 - TODO: `X-EBAY-SIGNATURE` verification is not implemented. The scheme itself is documented (base64 JSON header with `kid`/`alg`/`digest`/`signature`; public key from `GET /commerce/notification/v1/public_key/{kid}`; ECDSA over the raw body, SHA-1), but it signs eBay Notification API payloads (`metadata`/`notification` envelope), which is not this route's normalised body, and no sale/order topic was verified. Real order intake uses the poller above. Revisit if an order topic is adopted.
 - Buyer messaging (above), multi-line and multi-quantity orders (above), and a Finances API sandbox host (`apiz.sandbox.ebay.com` is assumed by analogy; Finances may not be available in the sandbox).
 - Carrier codes are passed to eBay as the supplier reports them; eBay expects its own `ShippingCarrierCodeType` values, so an unknown carrier may be rejected and the tracking push retried.
-- eBay account-deletion notifications (a marketplace requirement for production keysets) are not handled.
+- eBay account-deletion notifications: `GET /api/v1/webhooks/ebay/account-deletion?challenge_code=` answers the challenge, and `POST` the same path acknowledges and writes an `ebay.account_deletion` audit event. Both are public. They stay disabled (503 on the challenge) until `EBAY_DELETION_TOKEN` and `EBAY_DELETION_ENDPOINT` are set. Signature verification of the POST is still not implemented; eBay does not require it to validate the endpoint. A production boot (`EBAY_ENV=production`) refuses to start without both variables.
 
 ## eBay listing basics setup (v1.5)
 

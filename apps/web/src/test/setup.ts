@@ -10,7 +10,11 @@ expect.extend(matchers);
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 // Tests start signed in; auth tests call setToken(null) themselves.
-beforeEach(() => { setToken('test-token'); markIntroSeen(); });
+beforeEach(() => {
+  setToken('test-token');
+  markIntroSeen();
+  localStorage.setItem('floor.cookieNotice', '1');
+});
 afterEach(() => {
   cleanup();
   server.resetHandlers();

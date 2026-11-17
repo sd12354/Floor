@@ -63,6 +63,26 @@ WEB_ORIGIN=http://localhost:5173
 
 Not automated in real mode: buyer messages (a logged no-op), orders with several line items or quantity > 1 (skipped and logged), and buyer shipping/handling time (taken from your eBay fulfillment policy; keep it free shipping to match Floor's price math). CJdropshipping and Spocket adapters are still stubs. Details and known gaps: `docs/CONTRACT.md` -> "Real eBay adapter".
 
+## Production
+
+Floor is one long-running process: the API, the scheduler, and the dashboard on the same origin, with SQLite on a volume. Do not put the API on a serverless host. The scheduler and the database need a process that stays up.
+
+```bash
+docker compose up --build
+```
+
+Open http://localhost:4000, create the seller account, and sign in. This image runs `NODE_ENV=production` in mock mode until you set `FLOOR_MODE=real`. On startup Floor creates the SQLite tables if they are missing and refuses a schema change that would drop data. The database file is the `floor-data` volume (`file:/data/floor.db`).
+
+Before a public https deploy:
+
+1. Copy `apps/api/.env.example` to `apps/api/.env` and fill it in. `WEB_ORIGIN` must be the https URL users type. Leave `FLOOR_ALLOW_HTTP` unset. Set `TRUST_PROXY=1` when a proxy terminates TLS.
+2. Real mode needs `FLOOR_SECRET_KEY` (`openssl rand -base64 32`), the eBay app credentials, and — for `EBAY_ENV=production` — `EBAY_DELETION_TOKEN` and `EBAY_DELETION_ENDPOINT` (the public URL of `GET /api/v1/webhooks/ebay/account-deletion`). The process refuses to listen when any of those are missing.
+3. Put the proxy in front of port 4000. Client routes (`/login`, `/orders/...`) are served by the API from the built dashboard.
+
+`GET /health` returns `{ ok, mode, db }` and is the container health check. It returns 503 when SQLite cannot be queried.
+
+A split deploy (dashboard on Vercel, API elsewhere) needs `VITE_API_BASE` set to the API origin plus `/api/v1` at **build** time, and `CORS_ORIGINS` on the API set to the dashboard origin. The supported setup is the single container above. `vercel.json` only makes the dashboard's client routes resolve; it does not run the API.
+
 ## Commands
 
 `pnpm test` · `pnpm typecheck` · `pnpm build` · `pnpm lint`
