@@ -49,7 +49,7 @@ export function LoginPage() {
           <>
             <h1 className="font-display text-[26px] mt-8">{mode === 'signup' ? 'Create your account' : 'Sign in'}</h1>
             <p className="text-muted text-[14.5px] mt-1.5 mb-5">
-              {mode === 'signup' ? 'This is a one-time setup. Floor has a single seller account, and everything stays on this machine.' : 'Your eBay store, never below the floor.'}
+              {mode === 'signup' ? 'This is a one-time setup. Floor has a single seller account for this store.' : 'Your eBay store, never below the floor.'}
             </p>
           </>
         )}

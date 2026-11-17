@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 export type FloorMode = 'mock' | 'real';
 
 function int(name: string, fallback: number): number {
@@ -10,8 +12,16 @@ function int(name: string, fallback: number): number {
 export interface AppConfig {
   mode: FloorMode;
   nodeEnv: string;
+  /** Bind address. Development stays on loopback; production listens on every interface unless HOST is set. */
+  host: string;
   port: number;
   databaseUrl: string;
+  /** Honour X-Forwarded-* when Floor sits behind a reverse proxy. */
+  trustProxy: boolean;
+  /** Built web dashboard to serve at /. Unset means API only. */
+  webDist?: string;
+  /** Allow an http WEB_ORIGIN in production (private network or local Docker). Public deploys stay https. */
+  allowInsecureHttp: boolean;
   corsOrigins: string[];
   mockTrackingDelayMs: number;
   mockDeliveryDelayMs: number;
@@ -56,12 +66,22 @@ export interface AppConfig {
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const mode: FloorMode = process.env.FLOOR_MODE === 'real' ? 'real' : 'mock';
-  const corsOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173').split(',').map((s) => s.trim()).filter(Boolean);
+  const webOriginEnv = process.env.WEB_ORIGIN?.trim();
+  const corsRaw = process.env.CORS_ORIGINS;
+  // A production process that forgets CORS_ORIGINS still has to accept its own dashboard origin.
+  const corsFallback = nodeEnv === 'production' && !corsRaw && webOriginEnv
+    ? webOriginEnv
+    : 'http://localhost:5173,http://127.0.0.1:5173';
+  const corsOrigins = (corsRaw ?? corsFallback).split(',').map((s) => s.trim()).filter(Boolean);
   const base: AppConfig = {
     mode,
     nodeEnv,
+    host: process.env.HOST ?? (nodeEnv === 'production' ? '0.0.0.0' : '127.0.0.1'),
     port: int('PORT', 4000),
     databaseUrl: process.env.DATABASE_URL ?? 'file:./dev.db',
+    trustProxy: process.env.TRUST_PROXY === '1',
+    webDist: process.env.WEB_DIST ? path.resolve(process.env.WEB_DIST) : undefined,
+    allowInsecureHttp: process.env.FLOOR_ALLOW_HTTP === '1',
     corsOrigins,
     mockTrackingDelayMs: int('MOCK_TRACKING_DELAY_MS', 30_000),
     mockDeliveryDelayMs: int('MOCK_DELIVERY_DELAY_MS', 60_000),

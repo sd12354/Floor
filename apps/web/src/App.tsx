@@ -1,4 +1,4 @@
-import { createBrowserRouter, createMemoryRouter, RouterProvider, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, createMemoryRouter, Outlet, RouterProvider, type RouteObject } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/components/ui';
 import { AppShell } from '@/components/layout/AppShell';
@@ -18,8 +18,21 @@ import { MessagesPage } from '@/pages/MessagesPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { OnboardingPage } from '@/pages/OnboardingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { CookieNotice } from '@/components/CookieNotice';
+
+function Frame() {
+  return (
+    <>
+      <Outlet />
+      <CookieNotice />
+    </>
+  );
+}
 
 const routes: RouteObject[] = [
+  {
+    element: <Frame />,
+    children: [
   { path: '/login', element: <LoginPage /> },
   { path: '/welcome', element: <WelcomePage /> },
   { path: '/about', element: <AboutPage /> },
@@ -51,6 +64,8 @@ const routes: RouteObject[] = [
           },
         ],
       },
+    ],
+  },
     ],
   },
 ];

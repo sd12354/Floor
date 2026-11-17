@@ -6,6 +6,8 @@ import { id as newId } from './audit.js';
 export const SESSION_TTL_MS = 30 * 24 * 3600_000;
 const LOGIN_WINDOW_MS = 15 * 60_000;
 const LOGIN_MAX_FAILURES = 5;
+const IP_WINDOW_MS = 15 * 60_000;
+const IP_MAX_ATTEMPTS = 60;
 
 export const normaliseEmail = (email: string): string => email.trim().toLowerCase();
 const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
@@ -67,6 +69,31 @@ export class LoginThrottle {
 
   clear(email: string): void {
     this.attempts.delete(email);
+  }
+
+  private sweep(now: number): void {
+    for (const [k, v] of this.attempts) if (v.resetAt <= now) this.attempts.delete(k);
+  }
+}
+
+/**
+ * Caps sign-in and signup attempts from one address, so rotating emails cannot walk the password.
+ * The per-email brake above is still what locks a known account. Resets on restart.
+ */
+export class IpThrottle {
+  private readonly attempts = new Map<string, { count: number; resetAt: number }>();
+
+  tryAttempt(ip: string, now = Date.now()): boolean {
+    if (this.attempts.size > 5000) this.sweep(now);
+    const key = ip || 'unknown';
+    const a = this.attempts.get(key);
+    if (!a || a.resetAt <= now) {
+      this.attempts.set(key, { count: 1, resetAt: now + IP_WINDOW_MS });
+      return true;
+    }
+    if (a.count >= IP_MAX_ATTEMPTS) return false;
+    a.count += 1;
+    return true;
   }
 
   private sweep(now: number): void {

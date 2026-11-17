@@ -25,11 +25,11 @@ export interface TestApp {
 }
 
 /** Fresh temp SQLite DB + seeded demo account per call. Scheduler is disabled (NODE_ENV=test). */
-export async function createTestApp(opts: { dailySpendCapCents?: number; trackingDelayMs?: number } = {}): Promise<TestApp> {
+export async function createTestApp(opts: { dailySpendCapCents?: number; trackingDelayMs?: number; webDist?: string } = {}): Promise<TestApp> {
   const dir = mkdtempSync(path.join(tmpdir(), 'floor-test-'));
   const databaseUrl = `file:${path.join(dir, 'test.db')}`;
   await pushSchema(databaseUrl);
-  const config = loadConfig({ databaseUrl, mode: 'mock', nodeEnv: 'test', schedulerEnabled: false, mockTrackingDelayMs: opts.trackingDelayMs ?? 1000 });
+  const config = loadConfig({ databaseUrl, mode: 'mock', nodeEnv: 'test', schedulerEnabled: false, mockTrackingDelayMs: opts.trackingDelayMs ?? 1000, webDist: opts.webDist });
   const db = createDb(databaseUrl);
   const connectors = buildConnectors(config);
   await seedDemoAccount(db, connectors, { dailySpendCapCents: opts.dailySpendCapCents });

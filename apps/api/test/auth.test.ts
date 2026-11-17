@@ -40,9 +40,12 @@ describe('route guard', () => {
     expect((await t.api('GET', '/account')).status).toBe(200);
   });
 
-  it('leaves /health open', async () => {
+  it('leaves /health open and reports the database', async () => {
     const res = await t.app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: true, mode: 'mock', db: 'up' });
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('DENY');
   });
 });
 
@@ -79,6 +82,29 @@ describe('signup and login', () => {
     const res = await t.anon<Err>('POST', '/auth/login', { email: 'not-an-email', password: 'x' });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION');
+  });
+
+  it('sets an httpOnly session cookie that authenticates on its own', async () => {
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ email: t.seller.email, password: t.seller.password }),
+    });
+    expect(res.statusCode).toBe(200);
+    const setCookie = String(res.headers['set-cookie']);
+    expect(setCookie).toContain('floor_session=');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Lax');
+    const pair = setCookie.split(';')[0] ?? '';
+    const me = await t.app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: { cookie: pair } });
+    expect(me.statusCode).toBe(200);
+
+    const out = await t.app.inject({ method: 'POST', url: '/api/v1/auth/logout', headers: { cookie: pair } });
+    expect(out.statusCode).toBe(204);
+    expect(String(out.headers['set-cookie'])).toContain('Max-Age=0');
+    const again = await t.app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: { cookie: pair } });
+    expect(again.statusCode).toBe(401);
   });
 
   it('logout invalidates the token', async () => {
