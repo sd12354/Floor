@@ -9,7 +9,9 @@ if ! need_node && command -v nvm >/dev/null 2>&1; then nvm use 22 >/dev/null 2>&
 # Self-heal only if something essential is missing, otherwise skip the slow steps.
 [ -f packages/core/dist/index.js ] || { echo "Building core (first run)..."; pnpm --filter @floor/core build; }
 [ -f apps/api/dev.db ] || { echo "Creating local database (first run)..."; pnpm --filter @floor/api db:setup; }
-echo "Starting Floor — API on http://localhost:4000, app on http://localhost:5173"
+echo "Starting Floor — API on http://127.0.0.1:4000, app on http://127.0.0.1:5173"
 echo "Keep this window open. Close it (or Ctrl+C) to stop."
-(sleep 4; open "http://localhost:5173") &
+(sleep 4
+  if [ "$(uname)" = "Darwin" ]; then open "http://127.0.0.1:5173" >/dev/null 2>&1 || true; fi
+) &
 pnpm -r --parallel --filter ./packages/core --filter ./apps/api --filter ./apps/web dev
