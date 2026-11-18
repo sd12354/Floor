@@ -19,6 +19,10 @@ if ! command -v pnpm >/dev/null; then echo "Installing pnpm..."; corepack enable
 echo "Checking dependencies..."; pnpm install || pause "Install failed."
 pnpm --filter @floor/api check-env || { echo "Rebuilding native SQLite driver..."; pnpm -r rebuild better-sqlite3 && pnpm --filter @floor/api check-env; } || pause "The SQLite driver (better-sqlite3) cannot run on this machine. See floor-start.log."
 if [ ! -f apps/api/dev.db ]; then echo "Creating local database..."; pnpm --filter @floor/api db:setup || pause "DB setup failed."; else echo "Updating local database..."; pnpm --filter @floor/api db:generate && pnpm --filter @floor/api db:push || pause "Database update failed. See floor-start.log."; fi
-echo; echo "Starting Floor — API on http://localhost:4000, app on http://localhost:5173"; echo "Keep this window open. Close it (or Ctrl+C) to stop."; echo
-(sleep 6; open "http://localhost:5173") &
+echo; echo "Starting Floor — API on http://127.0.0.1:4000, app on http://127.0.0.1:5173"; echo "Keep this window open. Close it (or Ctrl+C) to stop."; echo
+# Opening the browser must not look like a startup failure. `open` is the Mac
+# command; on other systems it can launch a browser that then dumps errors into this log.
+(sleep 6
+  if [ "$(uname)" = "Darwin" ]; then open "http://127.0.0.1:5173" >/dev/null 2>&1 || true; fi
+) &
 pnpm dev

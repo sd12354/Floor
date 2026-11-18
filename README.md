@@ -10,10 +10,11 @@ Floor lists supplier products on eBay, keeps price and stock in sync around the 
 pnpm install                        # also builds @floor/core and generates the Prisma client
 pnpm --filter @floor/api db:setup   # creates SQLite dev DB and seeds the demo account
                                     # (after pulling schema changes, run db:generate and db:push instead)
-pnpm dev                            # API on :4000, web on :5173
+cp apps/api/.env.example apps/api/.env   # optional; the example is a working mock setup
+pnpm dev                            # API on 127.0.0.1:4000, app on 127.0.0.1:5173
 ```
 
-Open http://localhost:5173. The first time, create your seller account (email and a password of 8+ characters); after that, sign in with it. Floor has one seller account and signup closes once it exists. Then connect the (mock) eBay account and mock supplier, approve a few products from Discovery, publish, then use **Simulate sale** on a listing to watch an order run through the pipeline: margin re-check → supplier order → tracking → payout. Add a supplier price drift (try 60%) to the simulation: if the order's margin falls below your floor, Floor holds it for your decision instead of fulfilling. Floor never fulfils below your margin floor on its own; you can still approve a held order by hand.
+Open http://127.0.0.1:5173. The first time, create your seller account (email and a password of 8+ characters); after that, sign in with it. Floor has one seller account and signup closes once it exists. Then connect the (mock) eBay account and mock supplier, approve a few products from Discovery, publish, then use **Simulate sale** on a listing to watch an order run through the pipeline: margin re-check → supplier order → tracking → payout. Add a supplier price drift (try 60%) to the simulation: if the order's margin falls below your floor, Floor holds it for your decision instead of fulfilling. Floor never fulfils below your margin floor on its own; you can still approve a held order by hand.
 
 Notes for restricted networks: `prisma generate` is run through `apps/api/scripts/prisma-generate.mjs`, which points
 `PRISMA_SCHEMA_ENGINE_BINARY` at a local no-op so nothing is downloaded from binaries.prisma.sh; schema push uses the
@@ -44,7 +45,7 @@ EBAY_FULFILLMENT_POLICY_ID=... EBAY_PAYMENT_POLICY_ID=... EBAY_RETURN_POLICY_ID=
 EBAY_MERCHANT_LOCATION_KEY=...
 EBAY_DEFAULT_CATEGORY_ID=...
 FLOOR_SECRET_KEY=...           # paste the output of: openssl rand -base64 32 (keep it; losing it means reconnecting eBay)
-WEB_ORIGIN=http://localhost:5173
+WEB_ORIGIN=http://127.0.0.1:5173
 # EBAY_USER_TOKEN=...         # optional static sandbox token instead of the connect flow
 # --- AliExpress supplier (optional; only needed to auto-buy from AliExpress) ---
 # ALIEXPRESS_APP_KEY=...       # AliExpress Open Platform app key

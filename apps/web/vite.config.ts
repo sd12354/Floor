@@ -7,12 +7,16 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
+    // Bind the IPv4 loopback explicitly. Vite's default follows DNS and, on
+    // this machine, listens only on ::1, so http://127.0.0.1:5173 is refused.
+    host: '127.0.0.1',
     port: 5173,
+    strictPort: true,
     proxy: {
       '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
     },
   },
-  preview: { port: 5173 },
+  preview: { host: '127.0.0.1', port: 5173, strictPort: true },
   test: {
     environment: 'jsdom',
     globals: true,
